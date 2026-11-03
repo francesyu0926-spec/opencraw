@@ -69,6 +69,7 @@ class MonitorConfig:
     elasticsearch: ElasticsearchConfig | None = None
     # auto 时：配置了 elasticsearch.url 则走 elk，否则 local
     monitor_mode: str = "auto"
-    query_time_mode: str = "batch_window"
+    query_time_mode: str = "rolling_in_batch"
     batch_window_start: str = "00:00"
     batch_window_end: str = "05:00"
+    schedule_interval_minutes: int = 15

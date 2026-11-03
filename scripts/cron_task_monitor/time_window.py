@@ -11,6 +11,19 @@ def _parse_hhmm(value: str) -> time:
     return time(hour, minute)
 
 
+def _batch_bounds(cfg: MonitorConfig, now: datetime, tz: ZoneInfo) -> tuple[datetime, datetime]:
+    start_t = _parse_hhmm(cfg.batch_window_start or "00:00")
+    end_t = _parse_hhmm(cfg.batch_window_end or "05:00")
+    start_dt = datetime.combine(now.date(), start_t, tzinfo=tz)
+    end_dt = datetime.combine(now.date(), end_t, tzinfo=tz)
+    if end_dt <= start_dt:
+        end_dt += timedelta(days=1)
+    if now < start_dt:
+        start_dt -= timedelta(days=1)
+        end_dt -= timedelta(days=1)
+    return start_dt, end_dt
+
+
 def resolve_query_timestamp_range(
     cfg: MonitorConfig,
     ref: datetime | None = None,
@@ -18,23 +31,27 @@ def resolve_query_timestamp_range(
     """
     返回 ES @timestamp range 的 gte、lte（ISO8601，含时区偏移）。
 
-    batch_window：配置时区下「当日 00:00–05:00」；若 ref 仍在该窗口内，lte 为 ref（便于凌晨多次巡检）。
-    否则使用 elasticsearch.timestamp_gte / timestamp_lte（如 now/d、now）。
+    rolling_in_batch（默认）：在 batch_window 内，每轮只查最近 schedule_interval_minutes
+    （默认 15 分钟），与「0–5 点每 15 分钟跑一次」一致。
+
+    batch_window：当日 00:00 至 min(当前, 05:00)，凌晨多次跑时窗口随当前时间变长。
+
+    elastic：使用 elasticsearch.timestamp_gte / timestamp_lte（如 now-15m、now/d）。
     """
     tz = ZoneInfo(cfg.timezone)
     now = (ref or datetime.now(tz)).astimezone(tz)
+    mode = (cfg.query_time_mode or "rolling_in_batch").strip().lower()
 
-    mode = (cfg.query_time_mode or "batch_window").strip().lower()
+    if mode in ("rolling_in_batch", "rolling"):
+        start_dt, end_dt = _batch_bounds(cfg, now, tz)
+        interval = max(1, int(cfg.schedule_interval_minutes or 15))
+        rolling_start = now - timedelta(minutes=interval)
+        gte_dt = max(start_dt, rolling_start)
+        lte_dt = min(now, end_dt)
+        return gte_dt.isoformat(), lte_dt.isoformat()
+
     if mode == "batch_window":
-        start_t = _parse_hhmm(cfg.batch_window_start or "00:00")
-        end_t = _parse_hhmm(cfg.batch_window_end or "05:00")
-        start_dt = datetime.combine(now.date(), start_t, tzinfo=tz)
-        end_dt = datetime.combine(now.date(), end_t, tzinfo=tz)
-        if end_dt <= start_dt:
-            end_dt += timedelta(days=1)
-        if now < start_dt:
-            start_dt -= timedelta(days=1)
-            end_dt -= timedelta(days=1)
+        start_dt, end_dt = _batch_bounds(cfg, now, tz)
         lte_dt = min(now, end_dt) if now < end_dt else end_dt
         return start_dt.isoformat(), lte_dt.isoformat()
 

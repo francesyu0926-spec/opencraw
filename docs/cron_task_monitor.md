@@ -1,48 +1,46 @@
 # 定时任务监控（§2.1）
 
-逻辑与 **mdimonitor** [`tests/test_quotes_es.py`](http://gitlab.sfccn.com/application/monitor_quote_system/mdimonitor/-/blob/main/tests/test_quotes_es.py) 一致：
+## 执行计划（每天 00:00–05:00，每 15 分钟）
 
-1. 一次 ES 查询：`logstash-zxt-terminal-task-*` + `logstash-sync-mongo-*`
-2. `bool.should`：对每个任务 id 做 `match(msg, keyword)`
-3. 时间窗：**北京时间每天 `00:00`–`05:00`**（`query_time_mode: batch_window`）；凌晨巡检时 `lte` 为当前时刻，5 点后终检固定到当日 05:00
-4. 扫 hit 解析三类日志：
-   - `开始执行任务: …,执行时间：…` → 延迟启动 > 5 分钟
-   - `任务执行完成:…,耗时：…秒` → 耗时 > 计划时长 + 10 分钟
-   - 含 `执行失败` 且命中任务 keyword → 失败
+| 项目 | 配置 |
+|------|------|
+| 运行窗口 | **00:00–05:00**（`Asia/Shanghai`） |
+| 频率 | **每 15 分钟** |
+| ES 查询 | **`rolling_in_batch`**：在窗口内查 **最近 15 分钟** 日志 |
 
-## 运行
+触发时刻示例：`00:00, 00:15, …, 04:45, 05:00`。
+
+### Linux cron
+
+见 `config/schedule.example.cron`。
+
+### Windows 任务计划程序
+
+1. 创建任务 → 触发器：**每天 00:00**
+2. 勾选 **重复任务**，间隔 **15 分钟**，持续时间 **5 小时**
+3. 操作：`powershell.exe -ExecutionPolicy Bypass -File D:\Document\CODE\opencraw\scripts\run_monitor_scheduled.ps1`
+4. 环境变量：`ELASTICSEARCH_PASSWORD`、`WECOM_WEBHOOK_URL`（系统或任务里配置）
+
+## 手动运行
 
 ```powershell
-pip install -r requirements-monitor.txt
 $env:ELASTICSEARCH_PASSWORD = "密码"
-$env:WECOM_WEBHOOK_URL = "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=你的key"
+$env:WECOM_WEBHOOK_URL = "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=..."
 
-python -m scripts.cron_task_monitor --check-elk
-python -m scripts.cron_task_monitor --print-elk-query
+python -m scripts.cron_task_monitor --print-elk-query   # 含 query_time_range
 python -m scripts.cron_task_monitor --json
 ```
 
-有告警且已配置 **`WECOM_WEBHOOK_URL`** 时，会**自动**推送企业微信文本消息（`msgtype: text`）。仅本地看结果可加 **`--no-notify`**。
+`--print-elk-query` 会输出当前时刻对应的 **gte/lte**（ISO8601，北京时间）。
 
-### 建议 Cron（Windows 任务计划程序 / Linux cron）
+## 查询时间模式（`query_time_mode`）
 
-在 **00:00–05:00** 间可每 15–30 分钟跑一次；**05:05** 做终检（查询窗口仍为当日 00:00–05:00）：
+| 模式 | 含义 |
+|------|------|
+| `rolling_in_batch`（默认） | 在 `batch_window` 内，查 `[now-15m, now]` 与窗口的交集 |
+| `batch_window` | 当日 `00:00` 至 `min(now, 05:00)` |
+| `elastic` | 使用 YAML 里 `timestamp_gte` / `timestamp_lte`（如 `now/d`） |
 
-```cron
-5 5 * * * cd /opt/opencraw && python3 -m scripts.cron_task_monitor --json
-```
+## 告警与企业微信
 
-## 配置
-
-`config/cron_tasks.yaml` 中：
-
-- `elasticsearch.url` / `username` + 环境变量密码
-- `elasticsearch.indices`：与 mdimonitor 相同的两条 index pattern
-- `tasks[].id`：作为 `msg_keywords`（对应 `data.Task` 类属性名）
-- `scheduled_start` / `expected_end`：供 `calculate_time_diff_by_task` 计算计划时长
-
-## 单测
-
-```bash
-PYTHONPATH=. python -m unittest tests.test_quotes_es -v
-```
+有告警且配置了 **`WECOM_WEBHOOK_URL`** 时自动推送；加 **`--no-notify`** 可关闭。

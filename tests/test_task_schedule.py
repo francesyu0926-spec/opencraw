@@ -31,9 +31,10 @@ class TaskScheduleTests(unittest.TestCase):
 
     def test_batch_window_config(self) -> None:
         cfg = load_config("config/cron_tasks.yaml")
-        self.assertEqual(cfg.query_time_mode, "batch_window")
+        self.assertEqual(cfg.query_time_mode, "rolling_in_batch")
         self.assertEqual(cfg.batch_window_start, "00:00")
         self.assertEqual(cfg.batch_window_end, "05:00")
+        self.assertEqual(cfg.schedule_interval_minutes, 15)
 
 
 if __name__ == "__main__":

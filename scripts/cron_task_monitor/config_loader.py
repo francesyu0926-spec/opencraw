@@ -51,6 +51,9 @@ def load_config(path: str | Path) -> MonitorConfig:
     bw = data.get("batch_window") or {}
     if not isinstance(bw, dict):
         bw = {}
+    sched = data.get("schedule") or {}
+    if not isinstance(sched, dict):
+        sched = {}
 
     return MonitorConfig(
         timezone=str(data.get("timezone") or "Asia/Shanghai"),
@@ -62,9 +65,12 @@ def load_config(path: str | Path) -> MonitorConfig:
         tasks=tasks,
         elasticsearch=elasticsearch,
         monitor_mode=str(data.get("monitor_mode") or "auto").strip().lower(),
-        query_time_mode=str(data.get("query_time_mode") or "batch_window").strip(),
+        query_time_mode=str(data.get("query_time_mode") or "rolling_in_batch").strip(),
         batch_window_start=str(bw.get("start") or data.get("batch_window_start") or "00:00"),
         batch_window_end=str(bw.get("end") or data.get("batch_window_end") or "05:00"),
+        schedule_interval_minutes=int(
+            sched.get("interval_minutes") or data.get("schedule_interval_minutes") or 15
+        ),
     )
 
 

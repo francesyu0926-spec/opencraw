@@ -1,9 +1,13 @@
 # §2.1 定时任务监控清单（与运维 PDF 对齐，2026 版任务时间）
 timezone: Asia/Shanghai
 
-# 定时巡检：每天 00:00–05:00（Asia/Shanghai）查 ELK；建议 cron 在 05:05 再跑一轮终检
+# 任务计划：每天 00:00–05:00 每 15 分钟执行脚本（见 config/schedule.example.cron）
 monitor_mode: elk
-query_time_mode: batch_window
+query_time_mode: rolling_in_batch
+schedule:
+  interval_minutes: 15
+  active_start: "00:00"
+  active_end: "05:00"
 batch_window:
   start: "00:00"
   end: "05:00"

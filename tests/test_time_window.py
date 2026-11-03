@@ -9,19 +9,18 @@ from scripts.cron_task_monitor.time_window import resolve_query_timestamp_range
 
 
 class TimeWindowTests(unittest.TestCase):
-    def test_batch_window_after_five_am(self) -> None:
+    def test_rolling_in_batch_15m(self) -> None:
         cfg = load_config("config/cron_tasks.yaml")
-        ref = datetime(2025, 11, 3, 16, 0, tzinfo=ZoneInfo("Asia/Shanghai"))
+        tz = ZoneInfo(cfg.timezone)
+        ref = datetime(2025, 11, 3, 1, 30, tzinfo=tz)
         gte, lte = resolve_query_timestamp_range(cfg, ref)
-        self.assertTrue(gte.startswith("2025-11-03T00:00:00"))
-        self.assertTrue(lte.startswith("2025-11-03T05:00:00"))
-        self.assertIn("+08:00", gte)
+        self.assertIn("2025-11-03T01:15:00", gte)
+        self.assertIn("2025-11-03T01:30:00", lte)
 
-    def test_batch_window_during_run(self) -> None:
+    def test_schedule_config(self) -> None:
         cfg = load_config("config/cron_tasks.yaml")
-        ref = datetime(2025, 11, 3, 2, 30, tzinfo=ZoneInfo("Asia/Shanghai"))
-        gte, lte = resolve_query_timestamp_range(cfg, ref)
-        self.assertTrue(lte.startswith("2025-11-03T02:30:00"))
+        self.assertEqual(cfg.query_time_mode, "rolling_in_batch")
+        self.assertEqual(cfg.schedule_interval_minutes, 15)
 
 
 if __name__ == "__main__":
