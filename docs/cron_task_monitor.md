@@ -57,6 +57,14 @@ elasticsearch:
 | `elk_msg_keywords` | 可选，覆盖默认 match；只取**第一个**关键字 |
 | `log_dir` / `server` | 仅文档对照，**脚本不使用** |
 
+## ES 查询（对齐 mdimonitor）
+
+实现见 `scripts/cron_task_monitor/quotes_es.py`，与  
+[mdimonitor/tests/test_quotes_es.py](http://gitlab.sfccn.com/application/monitor_quote_system/mdimonitor/-/blob/main/tests/test_quotes_es.py)  
+相同结构：单个 `match(msg, task_id)` + `@timestamp` 范围。
+
+本地单测：`python -m unittest tests.test_quotes_es`
+
 ## 推荐日志打点
 
 ```text

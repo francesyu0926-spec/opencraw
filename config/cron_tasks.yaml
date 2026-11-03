@@ -18,8 +18,8 @@ elasticsearch:
   url: http://dcelk.sfccn.com:9200
   username: quotemonitor
   message_field: msg
-  # 定时任务：查当天日志；若做 15 分钟滚动探活可改为 now-15m
-  timestamp_gte: now/d
+  # 与 mdimonitor test_quotes_es 一致默认 now-15m；查凌晨批任务可改为 now/d
+  timestamp_gte: now-15m
   timestamp_lte: now
   query_size: 1000
 
