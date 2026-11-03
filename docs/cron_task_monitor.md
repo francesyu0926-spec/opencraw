@@ -54,7 +54,7 @@ elasticsearch:
 | 字段 | 用途 |
 |------|------|
 | `log_index_pattern` | **ELK 索引**，如 `logstash-sync-mongo-*` |
-| `elk_msg_keywords` | 可选，额外 match 关键字 |
+| `elk_msg_keywords` | 可选，覆盖默认 match；只取**第一个**关键字 |
 | `log_dir` / `server` | 仅文档对照，**脚本不使用** |
 
 ## 推荐日志打点

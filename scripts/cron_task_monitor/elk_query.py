@@ -6,27 +6,15 @@ from .models import ElasticsearchConfig, MonitorConfig, TaskDefinition
 
 
 def task_msg_keywords(task: TaskDefinition, cfg: MonitorConfig) -> list[str]:
-    """ES 检索关键字：任务级 elk_msg_keywords > 自动生成。"""
+    """ES 检索关键字：默认仅 match 任务 id（一个 should 条件）。"""
     raw = task.extra.get("elk_msg_keywords")
     if raw:
         if isinstance(raw, str):
-            return [raw]
-        return [str(k).strip() for k in raw if str(k).strip()]
+            return [raw.strip()] if raw.strip() else [task.id]
+        items = [str(k).strip() for k in raw if str(k).strip()]
+        return [items[0]] if items else [task.id]
 
-    keywords = [
-        task.id,
-        task.name,
-        f"task={task.id}",
-        cfg.monitor_log_prefix,
-    ]
-    # 去重且保持顺序
-    seen: set[str] = set()
-    out: list[str] = []
-    for k in keywords:
-        if k and k not in seen:
-            seen.add(k)
-            out.append(k)
-    return out
+    return [task.id]
 
 
 def build_msg_match_query(
@@ -40,7 +28,7 @@ def build_msg_match_query(
     """
     与现网 quotemonitor 一致的 ES 查询结构：
 
-    bool.should: match(msg, keyword) * N, minimum_should_match=1
+    bool.should: 单个 match(msg, task.id)；minimum_should_match=1
     bool.filter: @timestamp range
     sort: @timestamp asc
     """

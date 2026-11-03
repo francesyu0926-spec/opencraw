@@ -19,7 +19,7 @@ class ElkQueryTests(unittest.TestCase):
         )
         q = body["query"]["bool"]
         self.assertEqual(q["minimum_should_match"], 1)
-        self.assertEqual(len(q["should"]), 2)
+        self.assertEqual(len(q["should"]), 2)  # build_msg_match_query 仍支持多关键字入参
         self.assertEqual(q["should"][0], {"match": {"msg": "CBD_PUB_BOARD_INFO"}})
         self.assertEqual(q["filter"][0]["range"]["@timestamp"]["gte"], "now-15m")
         self.assertEqual(body["size"], 1000)
@@ -28,8 +28,7 @@ class ElkQueryTests(unittest.TestCase):
         cfg = load_config("config/cron_tasks.yaml")
         task = cfg.tasks[0]
         kws = task_msg_keywords(task, cfg)
-        self.assertIn("CBD_PUB_BOARD_INFO", kws)
-        self.assertIn("主题成分股", kws)
+        self.assertEqual(kws, ["CBD_PUB_BOARD_INFO"])
 
     def test_build_task_search_body(self) -> None:
         cfg = load_config("config/cron_tasks.yaml")
