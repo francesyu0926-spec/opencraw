@@ -4,12 +4,12 @@ import json
 import urllib.error
 import urllib.request
 from datetime import datetime
-from typing import Any
 from zoneinfo import ZoneInfo
 
 from .elasticsearch_settings import auth_headers, resolve_elasticsearch
+from .elk_query import build_task_search_body, extract_log_line
 from .log_parser import parse_lines_for_task
-from .models import MonitorConfig, TaskDefinition, TaskRunRecord
+from .models import ElasticsearchConfig, MonitorConfig, TaskDefinition, TaskRunRecord
 
 
 def check_elasticsearch(cfg: MonitorConfig) -> tuple[bool, str]:
@@ -46,37 +46,8 @@ def query_task_from_elk(
         return None
 
     tz = ZoneInfo(cfg.timezone)
-    day_start = datetime.combine(now.date(), datetime.min.time(), tzinfo=tz)
-    day_end = datetime.combine(now.date(), datetime.max.time(), tzinfo=tz)
-
-    body: dict[str, Any] = {
-        "size": 500,
-        "sort": [{"@timestamp": {"order": "asc"}}],
-        "query": {
-            "bool": {
-                "filter": [
-                    {
-                        "range": {
-                            "@timestamp": {
-                                "gte": day_start.isoformat(),
-                                "lte": day_end.isoformat(),
-                            }
-                        }
-                    },
-                    {
-                        "query_string": {
-                            "query": (
-                                f'task:{task.id} OR message:"task={task.id}" '
-                                f'OR message:"{task.id}"'
-                            ),
-                            "default_field": "message",
-                        }
-                    },
-                ]
-            }
-        },
-        "_source": ["message", "@timestamp"],
-    }
+    es_cfg = cfg.elasticsearch or ElasticsearchConfig()
+    body = build_task_search_body(cfg, task)
 
     index = task.log_index_pattern
     url = f"{settings.url}/{index}/_search"
@@ -100,10 +71,11 @@ def query_task_from_elk(
         return rec
 
     hits = payload.get("hits", {}).get("hits") or []
+    field = es_cfg.message_field or "msg"
     lines: list[str] = []
     for hit in hits:
         src = hit.get("_source") or {}
-        msg = src.get("message")
+        msg = extract_log_line(src, field)
         ts = src.get("@timestamp")
         if msg:
             if ts and str(ts) not in str(msg):
@@ -112,7 +84,11 @@ def query_task_from_elk(
                 lines.append(str(msg))
 
     if not lines:
-        return TaskRunRecord(task_id=task.id, source="elk", status="missing_log")
+        rec = TaskRunRecord(task_id=task.id, source="elk", status="missing_log")
+        rec.raw_messages.append(
+            f"elk: 0 hits index={index} query={json.dumps(body['query'], ensure_ascii=False)[:300]}"
+        )
+        return rec
 
     record = parse_lines_for_task(task, lines, tz, cfg.monitor_log_prefix)
     record.source = "elk"

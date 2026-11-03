@@ -52,6 +52,10 @@ class Alert:
 class ElasticsearchConfig:
     url: str = ""
     username: str = ""
+    message_field: str = "msg"
+    timestamp_gte: str = "now/d"
+    timestamp_lte: str = "now"
+    query_size: int = 1000
 
 
 @dataclass

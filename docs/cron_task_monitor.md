@@ -62,6 +62,39 @@ python -m scripts.cron_task_monitor -c config/cron_tasks.yaml --mode elk --json
 
 环境变量会 **覆盖** YAML 中的 `elasticsearch.url` / `username`（便于多环境切换）。
 
+## ES 查询结构（与 quotemonitor 一致）
+
+对每个任务向索引（如 `logstash-sync-mongo-*`）发起 `_search`，核心 DSL 为：
+
+```json
+{
+  "query": {
+    "bool": {
+      "should": [
+        { "match": { "msg": "CBD_PUB_BOARD_INFO" } },
+        { "match": { "msg": "主题成分股" } }
+      ],
+      "minimum_should_match": 1,
+      "filter": [
+        { "range": { "@timestamp": { "gte": "now/d", "lte": "now" } } }
+      ]
+    }
+  },
+  "size": 1000,
+  "sort": [{ "@timestamp": { "order": "asc" } }]
+}
+```
+
+- 日志字段默认 **`msg`**（`elasticsearch.message_field`）
+- 时间窗默认 **`now/d` ~ `now`**（查当天批任务）；15 分钟滚动探活可在 YAML 改为 `timestamp_gte: now-15m`
+- 任务级可增加关键字：`elk_msg_keywords: ["logstash-sync", "同步完成"]`
+
+打印某任务的 query（不访问 ES）：
+
+```powershell
+python -m scripts.cron_task_monitor --task CBD_PUB_BOARD_INFO --print-elk-query
+```
+
 ## 运行模式
 
 | `--mode` | 说明 |

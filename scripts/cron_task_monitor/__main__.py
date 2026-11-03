@@ -9,6 +9,7 @@ from zoneinfo import ZoneInfo
 
 from .config_loader import load_config
 from .elk_client import check_elasticsearch, merge_records, query_task_from_elk
+from .elk_query import build_task_search_body
 from .evaluator import evaluate_task
 from .log_parser import analyze_local_task
 from .models import Alert
@@ -65,6 +66,11 @@ def _parse_args() -> argparse.Namespace:
         action="store_true",
         help="检测 Elasticsearch 连通性与认证（不执行任务监控）",
     )
+    p.add_argument(
+        "--print-elk-query",
+        action="store_true",
+        help="打印 ES 查询 JSON（bool + match(msg)），不发起请求",
+    )
     return p.parse_args()
 
 
@@ -108,11 +114,23 @@ def run_monitor(args: argparse.Namespace) -> int:
             print(msg)
         return 0 if ok else 1
 
+    selected = set(args.task_ids or [])
+    tasks_preview = [t for t in cfg.tasks if not selected or t.id in selected]
+    if args.print_elk_query:
+        out = {
+            task.id: {
+                "index": task.log_index_pattern,
+                "body": build_task_search_body(cfg, task),
+            }
+            for task in tasks_preview
+        }
+        print(json.dumps(out, ensure_ascii=False, indent=2))
+        return 0
+
     now = _resolve_now(cfg.timezone, args.at)
     tz = ZoneInfo(cfg.timezone)
 
-    selected = set(args.task_ids or [])
-    tasks = [t for t in cfg.tasks if not selected or t.id in selected]
+    tasks = tasks_preview
     _apply_log_dir_overrides(tasks, args.override_log_dir)
     if not tasks:
         print("no tasks matched", file=sys.stderr)

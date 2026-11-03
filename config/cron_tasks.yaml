@@ -14,6 +14,11 @@ monitor_log_prefix: "[TASK_MONITOR]"
 elasticsearch:
   url: http://dcelk.sfccn.com:9200
   username: quotemonitor
+  message_field: msg
+  # 定时任务：查当天日志；若做 15 分钟滚动探活可改为 now-15m
+  timestamp_gte: now/d
+  timestamp_lte: now
+  query_size: 1000
 
 tasks:
   - id: CBD_PUB_BOARD_INFO

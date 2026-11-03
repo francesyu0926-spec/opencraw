@@ -41,6 +41,10 @@ def load_config(path: str | Path) -> MonitorConfig:
             username=str(
                 es_raw.get("username") or es_raw.get("es_username") or ""
             ).strip(),
+            message_field=str(es_raw.get("message_field") or "msg").strip(),
+            timestamp_gte=str(es_raw.get("timestamp_gte") or "now/d").strip(),
+            timestamp_lte=str(es_raw.get("timestamp_lte") or "now").strip(),
+            query_size=int(es_raw.get("query_size") or 1000),
         )
 
     return MonitorConfig(
