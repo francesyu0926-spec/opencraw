@@ -57,7 +57,7 @@ python -m scripts.cron_task_monitor --ws-daemon
 
 ## 行情 API Health
 
-Token 来自登录接口，再放到 health 请求的 **Token** 头。未同时配置登录账号和密码时，才回退到静态 `QUOTES_HEALTH_TOKEN`。
+Token 来自登录接口，再放到 health 请求的 **Token** 头。登录最多每 **12 小时**一次，JWT 与取得时间写在 `config/health.token.cache.json`（已 gitignore）。未同时配置登录账号和密码时，才回退到静态 `QUOTES_HEALTH_TOKEN`（不写缓存）。
 
 ```powershell
 $env:QUOTES_LOGIN_CODE = "登录账号"
@@ -70,8 +70,10 @@ python -m scripts.cron_task_monitor --health-monitor --json
 
 Windows 计划任务可直接跑 `scripts/run_health_monitor.ps1`（自动加载 `config/health.env` / `config/wecom.env`）。
 
-- 每次探活 `POST https://terminal.sfccn.com/terminal/zxt-web/login/pwd`（`application/x-www-form-urlencoded`：`loginCode`、`password`），从响应取出 JWT，不缓存
-- 再 `POST https://terminal.sfccn.com/terminal/quotes/api/health`，空 body，**Token** 请求头
+- 缓存年龄小于 `login_interval_hours`（默认 **12**）时直接复用，不调用登录接口
+- 缓存缺失、无法读取或超过 12 小时：`POST https://terminal.sfccn.com/terminal/zxt-web/login/pwd`（`application/x-www-form-urlencoded`：`loginCode`、`password`）一次，写入 JWT 后再探活
+- health 返回 **401/403**：再登录一次，并只重试 health 一次
+- health 为 `POST https://terminal.sfccn.com/terminal/quotes/api/health`，空 body，**Token** 请求头
 - 解析 JSON：根 **`status`** 与 **`checks[]`** 中每一项的 **`status`** 均须为 **`UP`**，否则告警
 - 配置：`config/health_monitor.yaml`；密钥示例 `config/health.env.example`（勿提交 loginCode、password、Token、webhook）
 

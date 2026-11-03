@@ -1,4 +1,4 @@
-# 行情 API health：登录取 Token 后 POST health，全部 status 须为 UP。
+# 行情 API health：Token 默认缓存 12 小时，再 POST health，全部 status 须为 UP。
 # 优先 QUOTES_LOGIN_CODE / QUOTES_LOGIN_PASSWORD；否则回退 QUOTES_HEALTH_TOKEN。
 # 任务计划示例：每 5 分钟执行一次（全天）。
 # 程序：powershell.exe -ExecutionPolicy Bypass -File D:\Document\CODE\opencraw\scripts\run_health_monitor.ps1

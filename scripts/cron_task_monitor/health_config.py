@@ -19,7 +19,15 @@ class HealthMonitorConfig:
     login_url: str = "https://terminal.sfccn.com/terminal/zxt-web/login/pwd"
     login_code_env: str = "QUOTES_LOGIN_CODE"
     login_password_env: str = "QUOTES_LOGIN_PASSWORD"
+    login_interval_hours: float = 12.0
+    token_cache_path: str = "config/health.token.cache.json"
     wecom_webhook_env: str = "WECOM_WEBHOOK_URL_HEALTH"
+
+
+def _login_interval_hours(value: Any) -> float:
+    if value is None or value == "":
+        return 12.0
+    return float(value)
 
 
 def load_health_config(path: str | Path) -> HealthMonitorConfig:
@@ -44,6 +52,10 @@ def load_health_config(path: str | Path) -> HealthMonitorConfig:
         login_code_env=str(data.get("login_code_env") or "QUOTES_LOGIN_CODE").strip(),
         login_password_env=str(
             data.get("login_password_env") or "QUOTES_LOGIN_PASSWORD"
+        ).strip(),
+        login_interval_hours=_login_interval_hours(data.get("login_interval_hours")),
+        token_cache_path=str(
+            data.get("token_cache_path") or "config/health.token.cache.json"
         ).strip(),
         wecom_webhook_env=str(
             wecom.get("webhook_env") or "WECOM_WEBHOOK_URL_HEALTH"

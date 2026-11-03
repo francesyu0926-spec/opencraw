@@ -7,6 +7,8 @@ import urllib.error
 import urllib.parse
 import urllib.request
 from dataclasses import dataclass, field
+from datetime import datetime, timedelta, timezone
+from pathlib import Path
 from typing import Any
 
 from .health_config import HealthMonitorConfig
@@ -220,32 +222,74 @@ def _fetch_login_token(
     return token, ""
 
 
-def _resolve_token(cfg: HealthMonitorConfig) -> tuple[str | None, str]:
-    login_code = os.environ.get(cfg.login_code_env, "").strip()
-    password = os.environ.get(cfg.login_password_env, "").strip()
-    if login_code or password:
-        if not login_code or not password:
-            missing = cfg.login_code_env if not login_code else cfg.login_password_env
-            return None, f"未配置环境变量 {missing}"
-        return _fetch_login_token(cfg, login_code, password)
+_AUTH_REFRESH_STATUSES = {401, 403}
 
-    token = os.environ.get(cfg.token_env, "").strip()
+
+def _read_token_cache(path: Path) -> tuple[str, datetime] | None:
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError, ValueError):
+        return None
+    if not isinstance(data, dict):
+        return None
+    token = data.get("token")
+    stamp = data.get("obtained_at")
+    if not isinstance(token, str) or not token.strip():
+        return None
+    if not isinstance(stamp, str) or not stamp.strip():
+        return None
+    try:
+        obtained = datetime.fromisoformat(stamp.strip().replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if obtained.tzinfo is None:
+        obtained = obtained.replace(tzinfo=timezone.utc)
+    return token.strip(), obtained.astimezone(timezone.utc)
+
+
+def _write_token_cache(path: Path, token: str, obtained_at: datetime) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    payload = json.dumps(
+        {
+            "token": token,
+            "obtained_at": obtained_at.astimezone(timezone.utc).isoformat(),
+        },
+        ensure_ascii=False,
+    )
+    tmp = path.with_name(path.name + ".tmp")
+    tmp.write_text(payload + "\n", encoding="utf-8")
+    try:
+        os.chmod(tmp, 0o600)
+    except OSError:
+        pass
+    os.replace(tmp, path)
+
+
+def _try_write_token_cache(path: Path, token: str, obtained_at: datetime) -> None:
+    try:
+        _write_token_cache(path, token, obtained_at)
+    except OSError:
+        return
+
+
+def _cache_is_fresh(obtained_at: datetime, now: datetime, interval_hours: float) -> bool:
+    return now - obtained_at < timedelta(hours=interval_hours)
+
+
+def _login_and_store(
+    cfg: HealthMonitorConfig,
+    login_code: str,
+    password: str,
+    obtained_at: datetime,
+) -> tuple[str | None, str]:
+    token, err = _fetch_login_token(cfg, login_code, password)
     if not token:
-        return None, (
-            f"未配置环境变量 {cfg.login_code_env} 与 {cfg.login_password_env}，"
-            f"且未配置 {cfg.token_env}"
-        )
+        return None, err
+    _try_write_token_cache(Path(cfg.token_cache_path), token, obtained_at)
     return token, ""
 
 
-def run_health_probe(cfg: HealthMonitorConfig) -> HealthProbeResult:
-    token, token_error = _resolve_token(cfg)
-    if not token:
-        return HealthProbeResult(
-            ok=False,
-            error=token_error or "未取得 Token",
-        )
-
+def _post_health(cfg: HealthMonitorConfig, token: str) -> HealthProbeResult:
     headers = {
         "Token": token,
         "Content-Type": "application/json; charset=utf-8",
@@ -320,3 +364,49 @@ def run_health_probe(cfg: HealthMonitorConfig) -> HealthProbeResult:
         return result
 
     return result
+
+
+def _probe_with_cached_login(
+    cfg: HealthMonitorConfig,
+    login_code: str,
+    password: str,
+) -> HealthProbeResult:
+    now = datetime.now(timezone.utc)
+    cached = _read_token_cache(Path(cfg.token_cache_path))
+    if cached is not None and _cache_is_fresh(cached[1], now, cfg.login_interval_hours):
+        token = cached[0]
+    else:
+        token, err = _login_and_store(cfg, login_code, password, now)
+        if not token:
+            return HealthProbeResult(ok=False, error=err or "未取得 Token")
+
+    result = _post_health(cfg, token)
+    if result.http_status in _AUTH_REFRESH_STATUSES:
+        token, err = _login_and_store(
+            cfg, login_code, password, datetime.now(timezone.utc)
+        )
+        if not token:
+            return HealthProbeResult(ok=False, error=err or "未取得 Token")
+        result = _post_health(cfg, token)
+    return result
+
+
+def run_health_probe(cfg: HealthMonitorConfig) -> HealthProbeResult:
+    login_code = os.environ.get(cfg.login_code_env, "").strip()
+    password = os.environ.get(cfg.login_password_env, "").strip()
+    if login_code or password:
+        if not login_code or not password:
+            missing = cfg.login_code_env if not login_code else cfg.login_password_env
+            return HealthProbeResult(ok=False, error=f"未配置环境变量 {missing}")
+        return _probe_with_cached_login(cfg, login_code, password)
+
+    token = os.environ.get(cfg.token_env, "").strip()
+    if not token:
+        return HealthProbeResult(
+            ok=False,
+            error=(
+                f"未配置环境变量 {cfg.login_code_env} 与 {cfg.login_password_env}，"
+                f"且未配置 {cfg.token_env}"
+            ),
+        )
+    return _post_health(cfg, token)
