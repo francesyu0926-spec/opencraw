@@ -22,6 +22,9 @@ elasticsearch:
   timestamp_gte: now-15m
   timestamp_lte: now
   query_size: 1000
+  indices:
+    - logstash-zxt-terminal-task-*
+    - logstash-sync-mongo-*
 
 tasks:
   - id: CBD_PUB_BOARD_INFO

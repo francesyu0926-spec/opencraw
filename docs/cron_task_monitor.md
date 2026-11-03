@@ -1,77 +1,37 @@
 # 定时任务监控（§2.1）
 
-**只查 Elasticsearch（dcelk）**，不登录任务服务器、不读取 `/usr/local/zxt/task/logs` 等本地路径。
+逻辑与 **mdimonitor** [`tests/test_quotes_es.py`](http://gitlab.sfccn.com/application/monitor_quote_system/mdimonitor/-/blob/main/tests/test_quotes_es.py) 一致：
 
-## 能力
+1. 一次 ES 查询：`logstash-zxt-terminal-task-*` + `logstash-sync-mongo-*`
+2. `bool.should`：对每个任务 id 做 `match(msg, keyword)`
+3. 时间窗：`now-15m` ~ `now`
+4. 扫 hit 解析三类日志：
+   - `开始执行任务: …,执行时间：…` → 延迟启动 > 5 分钟
+   - `任务执行完成:…,耗时：…秒` → 耗时 > 计划时长 + 10 分钟
+   - 含 `执行失败` 且命中任务 keyword → 失败
 
-- 通过 ES `bool` + `match(msg)` 查询任务日志
-- 告警：延迟启动、执行失败、超时、ELK 无命中
-- 可选 Webhook：`ALERT_WEBHOOK_URL`
+## 运行
 
-## 安装与运行
+```powershell
+pip install -r requirements-monitor.txt
+$env:ELASTICSEARCH_PASSWORD = "密码"
+
+python -m scripts.cron_task_monitor --check-elk
+python -m scripts.cron_task_monitor --print-elk-query
+python -m scripts.cron_task_monitor --json
+```
+
+## 配置
+
+`config/cron_tasks.yaml` 中：
+
+- `elasticsearch.url` / `username` + 环境变量密码
+- `elasticsearch.indices`：与 mdimonitor 相同的两条 index pattern
+- `tasks[].id`：作为 `msg_keywords`（对应 `data.Task` 类属性名）
+- `scheduled_start` / `expected_end`：供 `calculate_time_diff_by_task` 计算计划时长
+
+## 单测
 
 ```bash
-pip install -r requirements-monitor.txt
+PYTHONPATH=. python -m unittest tests.test_quotes_es -v
 ```
-
-### Windows PowerShell
-
-```powershell
-cd D:\Document\CODE\opencraw
-git pull origin cursor/cron-task-monitor-af56
-
-$env:ELASTICSEARCH_PASSWORD = "实际密码"
-
-python -m scripts.cron_task_monitor -c config/cron_tasks.yaml --check-elk
-python -m scripts.cron_task_monitor -c config/cron_tasks.yaml --json
-```
-
-无需 `--mode` 参数；脚本固定走 ELK。
-
-### 打印 ES Query（不调 ES）
-
-```powershell
-python -m scripts.cron_task_monitor --task CBD_PUB_BOARD_INFO --print-elk-query
-```
-
-## Elasticsearch 配置
-
-`config/cron_tasks.yaml`：
-
-```yaml
-elasticsearch:
-  url: http://dcelk.sfccn.com:9200
-  username: quotemonitor
-  message_field: msg
-  timestamp_gte: now/d
-  timestamp_lte: now
-```
-
-密码：`ELASTICSEARCH_PASSWORD`（见 `config/elk.env.example`）。
-
-## 任务配置说明
-
-| 字段 | 用途 |
-|------|------|
-| `log_index_pattern` | **ELK 索引**，如 `logstash-sync-mongo-*` |
-| `elk_msg_keywords` | 可选，覆盖默认 match；只取**第一个**关键字 |
-| `log_dir` / `server` | 仅文档对照，**脚本不使用** |
-
-## ES 查询（对齐 mdimonitor）
-
-实现见 `scripts/cron_task_monitor/quotes_es.py`，与  
-[mdimonitor/tests/test_quotes_es.py](http://gitlab.sfccn.com/application/monitor_quote_system/mdimonitor/-/blob/main/tests/test_quotes_es.py)  
-相同结构：单个 `match(msg, task_id)` + `@timestamp` 范围。
-
-本地单测：`python -m unittest tests.test_quotes_es`
-
-## 推荐日志打点
-
-```text
-[TASK_MONITOR] task=CBD_PUB_BOARD_INFO event=start ts=2025-11-03T01:00:01+08:00
-[TASK_MONITOR] task=CBD_PUB_BOARD_INFO event=end status=success ts=2025-11-03T01:02:59+08:00
-```
-
-## 退出码
-
-`0` 无告警，`1` 有告警，`2` 配置错误。

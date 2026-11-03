@@ -53,9 +53,10 @@ class ElasticsearchConfig:
     url: str = ""
     username: str = ""
     message_field: str = "msg"
-    timestamp_gte: str = "now/d"
+    timestamp_gte: str = "now-15m"
     timestamp_lte: str = "now"
     query_size: int = 1000
+    indices: list[str] | None = None
 
 
 @dataclass

@@ -1,46 +1,27 @@
 from __future__ import annotations
 
 import json
-import urllib.error
-import urllib.request
 from typing import Any
 
-from .elasticsearch_settings import ElasticsearchSettings, auth_headers
-from .models import ElasticsearchConfig, MonitorConfig, TaskDefinition
+from .elasticsearch_settings import ElasticsearchSettings, auth_headers, resolve_elasticsearch
+from .models import ElasticsearchConfig, MonitorConfig
 
-# 查询 DSL 对齐 mdimonitor/tests/test_quotes_es.py：
-# bool.should 内单个 match(msg, task_code) + @timestamp range + sort asc
-
-
-def resolve_msg_keyword(task: TaskDefinition) -> str:
-    """match 关键字：默认任务 id；可选 elk_msg_keywords 取第一个。"""
-    raw = task.extra.get("elk_msg_keywords")
-    if raw:
-        if isinstance(raw, str) and raw.strip():
-            return raw.strip()
-        if isinstance(raw, list):
-            for item in raw:
-                s = str(item).strip()
-                if s:
-                    return s
-    return task.id
+# 与 mdimonitor/tests/test_quotes_es.py query fixture 一致
 
 
-def build_quotes_es_search_body(
-    msg_keyword: str,
+def build_mdimonitor_query(
+    msg_keywords: list[str],
     *,
     message_field: str = "msg",
     timestamp_gte: str = "now-15m",
     timestamp_lte: str = "now",
     size: int = 1000,
 ) -> dict[str, Any]:
-    """构造 ES _search body（与 mdimonitor test_quotes_es 相同结构）。"""
+    should = [{"match": {message_field: kw}} for kw in msg_keywords if kw]
     return {
-        "size": size,
-        "sort": [{"@timestamp": {"order": "asc"}}],
         "query": {
             "bool": {
-                "should": [{"match": {message_field: msg_keyword}}],
+                "should": should,
                 "minimum_should_match": 1,
                 "filter": [
                     {
@@ -54,15 +35,18 @@ def build_quotes_es_search_body(
                 ],
             }
         },
-        "_source": [message_field, "message", "msg", "@timestamp"],
+        "size": size,
+        "sort": [{"@timestamp": {"order": "asc"}}],
     }
 
 
-def build_task_search_body(cfg: MonitorConfig, task: TaskDefinition) -> dict[str, Any]:
+def build_query_from_config(
+    cfg: MonitorConfig,
+    msg_keywords: list[str],
+) -> dict[str, Any]:
     es = cfg.elasticsearch or ElasticsearchConfig()
-    keyword = resolve_msg_keyword(task)
-    return build_quotes_es_search_body(
-        keyword,
+    return build_mdimonitor_query(
+        msg_keywords,
         message_field=es.message_field or "msg",
         timestamp_gte=es.timestamp_gte or "now-15m",
         timestamp_lte=es.timestamp_lte or "now",
@@ -70,58 +54,59 @@ def build_task_search_body(cfg: MonitorConfig, task: TaskDefinition) -> dict[str
     )
 
 
-def extract_log_line(source: dict[str, Any], message_field: str) -> str | None:
-    msg = source.get(message_field)
-    if msg is None:
-        msg = source.get("msg") or source.get("message")
-    if msg is None:
-        return None
-    if isinstance(msg, list):
-        msg = " ".join(str(x) for x in msg)
-    return str(msg)
+def default_indices(cfg: MonitorConfig) -> list[str]:
+    es = cfg.elasticsearch or ElasticsearchConfig()
+    if es.indices:
+        return list(es.indices)
+    return [
+        "logstash-zxt-terminal-task-*",
+        "logstash-sync-mongo-*",
+    ]
 
 
-def search_index(
-    settings: ElasticsearchSettings,
-    index: str,
-    body: dict[str, Any],
-    *,
-    timeout: int = 30,
-) -> tuple[dict[str, Any] | None, str | None]:
-    """
-    执行 ES _search。成功返回 (payload, None)；失败返回 (None, error_message)。
-    """
-    url = f"{settings.url}/{index}/_search"
-    req = urllib.request.Request(
-        url,
-        data=json.dumps(body).encode("utf-8"),
-        headers=auth_headers(settings),
-        method="POST",
-    )
+def create_es_client(settings: ElasticsearchSettings):
+    from elasticsearch import Elasticsearch
+
+    hosts = [settings.url]
+    kwargs: dict[str, Any] = {}
+    if settings.username and settings.password:
+        kwargs["basic_auth"] = (settings.username, settings.password)
+    return Elasticsearch(hosts, **kwargs)
+
+
+def search_hits(cfg: MonitorConfig, msg_keywords: list[str]) -> tuple[list[dict], str | None]:
+    """返回 (hits, error)。优先 elasticsearch 库，失败时回退 urllib。"""
+    settings = resolve_elasticsearch(cfg)
+    if not settings:
+        return [], "未配置 Elasticsearch"
+
+    body = build_query_from_config(cfg, msg_keywords)
+    indices = default_indices(cfg)
+
     try:
-        with urllib.request.urlopen(req, timeout=timeout) as resp:
-            return json.loads(resp.read().decode("utf-8")), None
-    except urllib.error.HTTPError as e:
-        detail = e.read().decode("utf-8", errors="replace")[:500]
-        return None, f"HTTP {e.code}: {detail}"
-    except (urllib.error.URLError, TimeoutError, json.JSONDecodeError) as e:
-        return None, str(e)
+        client = create_es_client(settings)
+        result = client.search(index=indices, body=body)
+        client.close()
+        return result.get("hits", {}).get("hits") or [], None
+    except Exception as exc:
+        # urllib 回退
+        import urllib.error
+        import urllib.request
 
-
-def hits_to_log_lines(
-    payload: dict[str, Any],
-    message_field: str,
-) -> list[str]:
-    hits = payload.get("hits", {}).get("hits") or []
-    lines: list[str] = []
-    for hit in hits:
-        src = hit.get("_source") or {}
-        msg = extract_log_line(src, message_field)
-        ts = src.get("@timestamp")
-        if not msg:
-            continue
-        if ts and str(ts) not in str(msg):
-            lines.append(f"{ts} {msg}")
-        else:
-            lines.append(str(msg))
-    return lines
+        index_path = ",".join(indices)
+        url = f"{settings.url}/{index_path}/_search"
+        req = urllib.request.Request(
+            url,
+            data=json.dumps(body).encode("utf-8"),
+            headers=auth_headers(settings),
+            method="POST",
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=30) as resp:
+                payload = json.loads(resp.read().decode("utf-8"))
+            return payload.get("hits", {}).get("hits") or [], None
+        except urllib.error.HTTPError as e:
+            detail = e.read().decode("utf-8", errors="replace")[:300]
+            return [], f"HTTP {e.code}: {detail} (elasticsearch lib: {exc})"
+        except (urllib.error.URLError, TimeoutError, json.JSONDecodeError) as e2:
+            return [], f"{e2} (elasticsearch lib: {exc})"

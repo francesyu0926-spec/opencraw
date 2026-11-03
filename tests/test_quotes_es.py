@@ -1,79 +1,95 @@
-"""
-ES 查询逻辑对齐 mdimonitor/tests/test_quotes_es.py：
-
-- bool.should: 单个 match(msg, task_code)
-- minimum_should_match: 1
-- filter: @timestamp gte/lte
-- size 1000, sort @timestamp asc
-"""
+"""对齐 mdimonitor/tests/test_quotes_es.py 的三类断言。"""
 
 from __future__ import annotations
 
 import os
 import unittest
+from datetime import datetime
+from zoneinfo import ZoneInfo
 
 from scripts.cron_task_monitor.config_loader import load_config
-from scripts.cron_task_monitor.quotes_es import (
-    build_quotes_es_search_body,
-    build_task_search_body,
-    resolve_msg_keyword,
+from scripts.cron_task_monitor.mdimonitor_checks import (
+    check_task_ended_late,
+    check_task_failed,
+    check_tasks_started_late,
+    run_mdimonitor_checks,
 )
+from scripts.cron_task_monitor.quote_utils import msg_keywords_from_config
+from scripts.cron_task_monitor.quotes_es import build_mdimonitor_query
 
 
-class TestQuotesEs(unittest.TestCase):
-    def test_build_quotes_es_search_body_structure(self) -> None:
-        body = build_quotes_es_search_body(
-            "CBD_QUOT_CBND_STK",
-            timestamp_gte="now-15m",
-            timestamp_lte="now",
-        )
+class TestQuotesEsQuery(unittest.TestCase):
+    def test_query_fixture_shape(self) -> None:
+        keywords = ["CBD_QUOT_CBND_STK", "CBD_PUB_BOARD_INFO"]
+        body = build_mdimonitor_query(keywords)
         bool_q = body["query"]["bool"]
-        self.assertEqual(len(bool_q["should"]), 1)
-        self.assertEqual(
-            bool_q["should"][0],
-            {"match": {"msg": "CBD_QUOT_CBND_STK"}},
-        )
+        self.assertEqual(len(bool_q["should"]), 2)
         self.assertEqual(bool_q["minimum_should_match"], 1)
         ts = bool_q["filter"][0]["range"]["@timestamp"]
         self.assertEqual(ts["gte"], "now-15m")
         self.assertEqual(ts["lte"], "now")
-        self.assertEqual(body["size"], 1000)
-        self.assertEqual(body["sort"], [{"@timestamp": {"order": "asc"}}])
 
-    def test_resolve_msg_keyword_default_task_id(self) -> None:
+
+class TestQuotesEsRules(unittest.TestCase):
+    def setUp(self) -> None:
+        self.cfg = load_config("config/cron_tasks.yaml")
+        self.tz = ZoneInfo(self.cfg.timezone)
+        self.ref = datetime(2025, 11, 3, 2, 0, tzinfo=self.tz)
+        self.keywords = msg_keywords_from_config(self.cfg)
+
+    def test_tasks_started_late(self) -> None:
+        hits = [
+            {
+                "_source": {
+                    "msg": "开始执行任务: CBD_QUOT_CBND_STK,执行时间：2025-11-03 02:10:00",
+                }
+            }
+        ]
+        alerts = check_tasks_started_late(self.cfg, hits, self.ref)
+        self.assertTrue(alerts)
+        self.assertIn("未按时启动", alerts[0].message)
+
+    def test_task_ended_late(self) -> None:
+        hits = [
+            {
+                "_source": {
+                    "msg": "任务执行完成:CBD_QUOT_CBND_STK,耗时：7200秒",
+                }
+            }
+        ]
+        alerts = check_task_ended_late(self.cfg, hits, self.ref)
+        self.assertTrue(alerts)
+        self.assertIn("执行超时", alerts[0].message)
+
+    def test_task_failed(self) -> None:
+        hits = [{"_source": {"msg": "CBD_QUOT_CBND_STK 执行失败，请检查"}}]
+        alerts = check_task_failed(self.cfg, hits, self.keywords)
+        self.assertTrue(alerts)
+        self.assertIn("执行失败", alerts[0].message)
+
+    def test_all_clear(self) -> None:
+        hits = [
+            {
+                "_source": {
+                    "msg": "开始执行任务: CBD_QUOT_CBND_STK,执行时间：2025-11-03 02:00:05",
+                }
+            },
+            {"_source": {"msg": "任务执行完成:CBD_QUOT_CBND_STK,耗时：120秒"}},
+        ]
+        alerts = run_mdimonitor_checks(self.cfg, hits, self.keywords, self.ref)
+        self.assertEqual(alerts, [])
+
+
+@unittest.skipUnless(os.environ.get("ELASTICSEARCH_PASSWORD"), "需要 ES 密码")
+class TestQuotesEsLive(unittest.TestCase):
+    def test_search_smoke(self) -> None:
+        from scripts.cron_task_monitor.quotes_es import search_hits
+
         cfg = load_config("config/cron_tasks.yaml")
-        task = next(t for t in cfg.tasks if t.id == "CBD_QUOT_CBND_STK")
-        self.assertEqual(resolve_msg_keyword(task), "CBD_QUOT_CBND_STK")
-
-    def test_build_task_search_body_from_yaml(self) -> None:
-        cfg = load_config("config/cron_tasks.yaml")
-        task = cfg.tasks[0]
-        body = build_task_search_body(cfg, task)
-        keyword = body["query"]["bool"]["should"][0]["match"]["msg"]
-        self.assertEqual(keyword, task.id)
-
-    @unittest.skipUnless(
-        os.environ.get("ELASTICSEARCH_PASSWORD"),
-        "需要 ELASTICSEARCH_PASSWORD 才跑联调",
-    )
-    def test_live_search_smoke(self) -> None:
-        from scripts.cron_task_monitor.elasticsearch_settings import resolve_elasticsearch
-        from scripts.cron_task_monitor.quotes_es import search_index
-
-        cfg = load_config("config/cron_tasks.yaml")
-        settings = resolve_elasticsearch(cfg)
-        assert settings is not None
-        task = cfg.tasks[0]
-        body = build_task_search_body(cfg, task)
-        payload, err = search_index(settings, task.log_index_pattern, body, timeout=30)
+        kws = msg_keywords_from_config(cfg)
+        hits, err = search_hits(cfg, kws)
         self.assertIsNone(err, err)
-        assert payload is not None
-        total = payload.get("hits", {}).get("total")
-        if isinstance(total, dict):
-            count = total.get("value", 0)
-        else:
-            count = int(total or 0)
-        self.assertGreaterEqual(count, 0)
+        self.assertIsInstance(hits, list)
 
 
 if __name__ == "__main__":
