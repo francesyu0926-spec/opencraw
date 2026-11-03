@@ -16,6 +16,9 @@ class HealthMonitorConfig:
     request_timeout_seconds: int
     expected_status: str
     notify: str
+    login_url: str = "https://terminal.sfccn.com/terminal/zxt-web/login/pwd"
+    login_code_env: str = "QUOTES_LOGIN_CODE"
+    login_password_env: str = "QUOTES_LOGIN_PASSWORD"
     wecom_webhook_env: str = "WECOM_WEBHOOK_URL_HEALTH"
 
 
@@ -34,6 +37,14 @@ def load_health_config(path: str | Path) -> HealthMonitorConfig:
         request_timeout_seconds=int(data.get("request_timeout_seconds") or 30),
         expected_status=str(data.get("expected_status") or "UP"),
         notify=str(data.get("notify") or ""),
+        login_url=str(
+            data.get("login_url")
+            or "https://terminal.sfccn.com/terminal/zxt-web/login/pwd"
+        ).strip(),
+        login_code_env=str(data.get("login_code_env") or "QUOTES_LOGIN_CODE").strip(),
+        login_password_env=str(
+            data.get("login_password_env") or "QUOTES_LOGIN_PASSWORD"
+        ).strip(),
         wecom_webhook_env=str(
             wecom.get("webhook_env") or "WECOM_WEBHOOK_URL_HEALTH"
         ).strip(),

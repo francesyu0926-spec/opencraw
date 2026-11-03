@@ -57,17 +57,23 @@ python -m scripts.cron_task_monitor --ws-daemon
 
 ## 行情 API Health
 
+Token 来自登录接口，再放到 health 请求的 **Token** 头。未同时配置登录账号和密码时，才回退到静态 `QUOTES_HEALTH_TOKEN`。
+
 ```powershell
-$env:QUOTES_HEALTH_TOKEN = "JWT"   # 对应 curl --header 'Token: ...'
+$env:QUOTES_LOGIN_CODE = "登录账号"
+$env:QUOTES_LOGIN_PASSWORD = "密码的 SHA256 hex"
+# 可选回退（登录变量都未设置时）：
+# $env:QUOTES_HEALTH_TOKEN = "JWT"
 $env:WECOM_WEBHOOK_URL_HEALTH = "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=..."
 python -m scripts.cron_task_monitor --health-monitor --json
 ```
 
 Windows 计划任务可直接跑 `scripts/run_health_monitor.ps1`（自动加载 `config/health.env` / `config/wecom.env`）。
 
-- 等价于 `POST https://terminal.sfccn.com/terminal/quotes/api/health`，空 body，**Token** 请求头
+- 每次探活 `POST https://terminal.sfccn.com/terminal/zxt-web/login/pwd`（`application/x-www-form-urlencoded`：`loginCode`、`password`），从响应取出 JWT，不缓存
+- 再 `POST https://terminal.sfccn.com/terminal/quotes/api/health`，空 body，**Token** 请求头
 - 解析 JSON：根 **`status`** 与 **`checks[]`** 中每一项的 **`status`** 均须为 **`UP`**，否则告警
-- 配置：`config/health_monitor.yaml`；密钥示例 `config/health.env.example`（勿提交 Token / webhook）
+- 配置：`config/health_monitor.yaml`；密钥示例 `config/health.env.example`（勿提交 loginCode、password、Token、webhook）
 
 ## 告警与企业微信（三个机器人）
 

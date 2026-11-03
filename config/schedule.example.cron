@@ -10,5 +10,5 @@ PATH=/usr/local/bin:/usr/bin:/bin
 # §2.2 WebSocket：每 10 分钟（8:30-9:00 脚本内自动跳过）
 */10 * * * * cd /opt/opencraw && set -a && [ -f config/wecom.env ] && . config/wecom.env && set +a && PYTHONPATH=. /usr/bin/python3 -m scripts.cron_task_monitor --ws-monitor --json >> /var/log/ws_monitor.log 2>&1
 
-# 行情 API health：每 5 分钟（需 QUOTES_HEALTH_TOKEN + WECOM_WEBHOOK_URL_HEALTH）
+# 行情 API health：每 5 分钟（优先 QUOTES_LOGIN_CODE + QUOTES_LOGIN_PASSWORD，否则 QUOTES_HEALTH_TOKEN；另需 WECOM_WEBHOOK_URL_HEALTH）
 */5 * * * * cd /opt/opencraw && set -a && [ -f config/health.env ] && . config/health.env && [ -f config/wecom.env ] && . config/wecom.env && set +a && PYTHONPATH=. /usr/bin/python3 -m scripts.cron_task_monitor --health-monitor --json >> /var/log/health_monitor.log 2>&1

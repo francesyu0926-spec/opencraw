@@ -3,7 +3,11 @@ timezone: Asia/Shanghai
 
 url: https://terminal.sfccn.com/terminal/quotes/api/health
 method: POST
-# 勿把 Token 写进仓库；在 config/health.env 或环境变量中设置
+# 探活前登录取 Token。loginCode / password 只放环境变量，勿写入仓库。
+login_url: https://terminal.sfccn.com/terminal/zxt-web/login/pwd
+login_code_env: QUOTES_LOGIN_CODE
+login_password_env: QUOTES_LOGIN_PASSWORD
+# 登录环境变量都未设置时，回退到此静态 Token
 token_env: QUOTES_HEALTH_TOKEN
 request_timeout_seconds: 30
 expected_status: UP
