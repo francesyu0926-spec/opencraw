@@ -8,28 +8,24 @@ from pathlib import Path
 from zoneinfo import ZoneInfo
 
 from .config_loader import load_config
-from .elk_client import check_elasticsearch, merge_records, query_task_from_elk
+from .elk_client import check_elasticsearch, query_task_from_elk
 from .elk_query import build_task_search_body
 from .evaluator import evaluate_task
-from .log_parser import analyze_local_task
-from .mode import resolve_monitor_mode
 from .models import Alert, TaskRunRecord
 from .notifier import send_webhook
 
+MONITOR_MODE = "elk"
+
 
 def _parse_args() -> argparse.Namespace:
-    p = argparse.ArgumentParser(description="§2.1 定时任务监控")
+    p = argparse.ArgumentParser(
+        description="§2.1 定时任务监控（仅 Elasticsearch，不读任务机本地日志）",
+    )
     p.add_argument(
         "-c",
         "--config",
         default="config/cron_tasks.yaml",
         help="任务配置文件路径",
-    )
-    p.add_argument(
-        "--mode",
-        choices=("auto", "local", "elk", "both"),
-        default="auto",
-        help="auto=有 ES 配置则 elk；elk=只查 ELK（不读 log_dir）；local=只读本地；both=合并",
     )
     p.add_argument(
         "--task",
@@ -57,12 +53,6 @@ def _parse_args() -> argparse.Namespace:
         help="有告警时 POST ALERT_WEBHOOK_URL",
     )
     p.add_argument(
-        "--override-log-dir",
-        action="append",
-        metavar="TASK_ID:PATH",
-        help="联调时覆盖任务的 log_dir，如 CBD_PUB_BOARD_INFO:/tmp/logs",
-    )
-    p.add_argument(
         "--check-elk",
         action="store_true",
         help="检测 Elasticsearch 连通性与认证（不执行任务监控）",
@@ -75,20 +65,6 @@ def _parse_args() -> argparse.Namespace:
     return p.parse_args()
 
 
-def _apply_log_dir_overrides(tasks: list, overrides: list[str] | None) -> None:
-    if not overrides:
-        return
-    mapping: dict[str, str] = {}
-    for item in overrides:
-        if ":" not in item:
-            continue
-        task_id, path = item.split(":", 1)
-        mapping[task_id.strip()] = path.strip()
-    for task in tasks:
-        if task.id in mapping:
-            task.log_dir = mapping[task.id]
-
-
 def _resolve_now(cfg_tz: str, at: str | None) -> datetime:
     tz = ZoneInfo(cfg_tz)
     if at:
@@ -97,6 +73,15 @@ def _resolve_now(cfg_tz: str, at: str | None) -> datetime:
             return dt.replace(tzinfo=tz)
         return dt.astimezone(tz)
     return datetime.now(tz)
+
+
+def _fetch_elk_record(cfg, task, now: datetime) -> TaskRunRecord:
+    elk_rec = query_task_from_elk(cfg, task, now)
+    if elk_rec is not None:
+        return elk_rec
+    record = TaskRunRecord(task_id=task.id, source="elk", status="missing_log")
+    record.raw_messages.append("未配置 Elasticsearch 或缺少 log_index_pattern")
+    return record
 
 
 def run_monitor(args: argparse.Namespace) -> int:
@@ -116,25 +101,20 @@ def run_monitor(args: argparse.Namespace) -> int:
         return 0 if ok else 1
 
     selected = set(args.task_ids or [])
-    tasks_preview = [t for t in cfg.tasks if not selected or t.id in selected]
+    tasks = [t for t in cfg.tasks if not selected or t.id in selected]
     if args.print_elk_query:
         out = {
             task.id: {
                 "index": task.log_index_pattern,
                 "body": build_task_search_body(cfg, task),
             }
-            for task in tasks_preview
+            for task in tasks
         }
         print(json.dumps(out, ensure_ascii=False, indent=2))
         return 0
 
-    mode = resolve_monitor_mode(cfg, args.mode)
-
     now = _resolve_now(cfg.timezone, args.at)
-    tz = ZoneInfo(cfg.timezone)
 
-    tasks = tasks_preview
-    _apply_log_dir_overrides(tasks, args.override_log_dir)
     if not tasks:
         print("no tasks matched", file=sys.stderr)
         return 2
@@ -143,30 +123,8 @@ def run_monitor(args: argparse.Namespace) -> int:
     report_rows: list[dict] = []
 
     for task in tasks:
-        record: TaskRunRecord
-        if mode == "elk":
-            elk_rec = query_task_from_elk(cfg, task, now)
-            if elk_rec is None:
-                record = TaskRunRecord(
-                    task_id=task.id,
-                    source="elk",
-                    status="missing_log",
-                )
-                record.raw_messages.append("未配置 Elasticsearch 或缺少 log_index_pattern")
-            else:
-                record = elk_rec
-        elif mode == "local":
-            record = analyze_local_task(task, tz, now, cfg.monitor_log_prefix)
-        else:
-            local = analyze_local_task(task, tz, now, cfg.monitor_log_prefix)
-            elk_rec = query_task_from_elk(cfg, task, now)
-            record = (
-                merge_records(local, elk_rec)
-                if elk_rec is not None
-                else local
-            )
-
-        alerts = evaluate_task(cfg, task, record, now, monitor_mode=mode)
+        record = _fetch_elk_record(cfg, task, now)
+        alerts = evaluate_task(cfg, task, record, now, monitor_mode=MONITOR_MODE)
         all_alerts.extend(alerts)
         report_rows.append(
             {
@@ -174,7 +132,7 @@ def run_monitor(args: argparse.Namespace) -> int:
                 "task_name": task.name,
                 "scheduled_start": task.scheduled_start,
                 "expected_end": task.expected_end,
-                "server": task.server,
+                "log_index": task.log_index_pattern,
                 "started_at": record.started_at.isoformat() if record.started_at else None,
                 "ended_at": record.ended_at.isoformat() if record.ended_at else None,
                 "status": record.status,
@@ -197,7 +155,7 @@ def run_monitor(args: argparse.Namespace) -> int:
                 {
                     "checked_at": now.isoformat(),
                     "timezone": cfg.timezone,
-                    "mode": mode,
+                    "mode": MONITOR_MODE,
                     "alert_count": len(all_alerts),
                     "tasks": report_rows,
                 },

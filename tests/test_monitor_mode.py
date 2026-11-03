@@ -6,14 +6,13 @@ from zoneinfo import ZoneInfo
 
 from scripts.cron_task_monitor.config_loader import load_config
 from scripts.cron_task_monitor.evaluator import evaluate_task
-from scripts.cron_task_monitor.mode import resolve_monitor_mode
 from scripts.cron_task_monitor.models import TaskRunRecord
 
 
 class MonitorModeTests(unittest.TestCase):
-    def test_config_defaults_to_elk(self) -> None:
+    def test_config_monitor_mode_elk(self) -> None:
         cfg = load_config("config/cron_tasks.yaml")
-        self.assertEqual(resolve_monitor_mode(cfg, "auto"), "elk")
+        self.assertEqual(cfg.monitor_mode, "elk")
 
     def test_elk_missing_log_message(self) -> None:
         cfg = load_config("config/cron_tasks.yaml")
