@@ -5,4 +5,5 @@ __pycache__/
 venv/
 config/elk.env
 config/wecom.env
+config/health.env
 .env

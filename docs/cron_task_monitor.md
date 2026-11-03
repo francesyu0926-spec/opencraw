@@ -63,6 +63,8 @@ $env:WECOM_WEBHOOK_URL_HEALTH = "https://qyapi.weixin.qq.com/cgi-bin/webhook/sen
 python -m scripts.cron_task_monitor --health-monitor --json
 ```
 
+Windows 计划任务可直接跑 `scripts/run_health_monitor.ps1`（自动加载 `config/health.env` / `config/wecom.env`）。
+
 - 等价于 `POST https://terminal.sfccn.com/terminal/quotes/api/health`，空 body，**Token** 请求头
 - 解析 JSON：根 **`status`** 与 **`checks[]`** 中每一项的 **`status`** 均须为 **`UP`**，否则告警
 - 配置：`config/health_monitor.yaml`；密钥示例 `config/health.env.example`（勿提交 Token / webhook）
