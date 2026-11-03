@@ -54,6 +54,11 @@ python -m scripts.cron_task_monitor --ws-monitor --json
 - 失败走企业微信（`WECOM_WEBHOOK_URL`）
 - 建议 **每 10 分钟** 跑一次（见 `config/schedule.example.cron`）
 
-## 告警与企业微信
+## 告警与企业微信（两个机器人）
 
-有告警且配置了 **`WECOM_WEBHOOK_URL`** 时自动推送；加 **`--no-notify`** 可关闭。
+| 监控 | 环境变量 | 配置 |
+|------|----------|------|
+| §2.1 ELK 定时任务 | **`WECOM_WEBHOOK_URL_ELK`** | `config/cron_tasks.yaml` → `wecom.webhook_env` |
+| §2.2 WebSocket | **`WECOM_WEBHOOK_URL_WS`** | `config/ws_monitor.yaml` → `wecom.webhook_env` |
+
+示例见 `config/wecom.env.example`。已配置对应变量时自动推送；**`--no-notify`** 可关闭。

@@ -74,3 +74,4 @@ class MonitorConfig:
     batch_window_start: str = "00:00"
     batch_window_end: str = "05:00"
     schedule_interval_minutes: int = 15
+    wecom_webhook_env: str = "WECOM_WEBHOOK_URL_ELK"

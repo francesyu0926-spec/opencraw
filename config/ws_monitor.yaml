@@ -13,6 +13,9 @@ connect_timeout_seconds: 15
 hold_seconds: 30
 notify: 高德建
 
+wecom:
+  webhook_env: WECOM_WEBHOOK_URL_WS
+
 subscribe_message:
   id: get_index_info
   action: subscribe

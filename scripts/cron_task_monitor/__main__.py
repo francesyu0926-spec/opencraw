@@ -137,8 +137,17 @@ def run_monitor(args: argparse.Namespace) -> int:
 
     notify_ok: bool | None = None
     notify_msg = ""
-    if alerts and not args.no_notify and should_send_notify(args.notify, args.dry_run):
-        notify_ok, notify_msg = send_webhook(alerts)
+    if alerts and not args.no_notify and should_send_notify(
+        args.notify,
+        args.dry_run,
+        webhook_env=cfg.wecom_webhook_env,
+        channel="elk",
+    ):
+        notify_ok, notify_msg = send_webhook(
+            alerts,
+            webhook_env=cfg.wecom_webhook_env,
+            channel="elk",
+        )
 
     if args.json:
         payload: dict = {

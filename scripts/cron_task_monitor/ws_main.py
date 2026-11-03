@@ -56,8 +56,18 @@ def run_ws_monitor(
 
     notify_ok = None
     notify_msg = ""
-    if alerts and not no_notify and should_send_notify(notify, dry_run):
-        notify_ok, notify_msg = send_webhook(alerts)
+    if alerts and not no_notify and should_send_notify(
+        notify,
+        dry_run,
+        webhook_env=cfg.wecom_webhook_env,
+        channel="ws",
+    ):
+        notify_ok, notify_msg = send_webhook(
+            alerts,
+            webhook_env=cfg.wecom_webhook_env,
+            channel="ws",
+            alert_title="【WebSocket 行情探活告警】",
+        )
 
     if as_json:
         out = {

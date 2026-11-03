@@ -17,6 +17,7 @@ class WsMonitorConfig:
     subscribe_message: dict[str, Any]
     skip_window_start: str = "08:30"
     skip_window_end: str = "09:00"
+    wecom_webhook_env: str = "WECOM_WEBHOOK_URL_WS"
 
 
 def load_ws_config(path: str | Path) -> WsMonitorConfig:
@@ -24,6 +25,9 @@ def load_ws_config(path: str | Path) -> WsMonitorConfig:
     if not isinstance(data, dict):
         raise ValueError("ws config must be a mapping")
     skip = data.get("skip_window") or {}
+    wecom = data.get("wecom") or {}
+    if not isinstance(wecom, dict):
+        wecom = {}
     return WsMonitorConfig(
         timezone=str(data.get("timezone") or "Asia/Shanghai"),
         url=str(data["url"]),
@@ -33,4 +37,5 @@ def load_ws_config(path: str | Path) -> WsMonitorConfig:
         subscribe_message=dict(data.get("subscribe_message") or {}),
         skip_window_start=str(skip.get("start") or "08:30"),
         skip_window_end=str(skip.get("end") or "09:00"),
+        wecom_webhook_env=str(wecom.get("webhook_env") or "WECOM_WEBHOOK_URL_WS").strip(),
     )

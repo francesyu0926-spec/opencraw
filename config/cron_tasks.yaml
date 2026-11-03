@@ -20,6 +20,10 @@ overrun_after_end_threshold_minutes: 10
 
 monitor_log_prefix: "[TASK_MONITOR]"
 
+# §2.1 告警机器人（与 §2.2 的 WECOM_WEBHOOK_URL_WS 分开）
+wecom:
+  webhook_env: WECOM_WEBHOOK_URL_ELK
+
 elasticsearch:
   url: http://dcelk.sfccn.com:9200
   username: quotemonitor

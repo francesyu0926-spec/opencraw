@@ -54,6 +54,9 @@ def load_config(path: str | Path) -> MonitorConfig:
     sched = data.get("schedule") or {}
     if not isinstance(sched, dict):
         sched = {}
+    wecom = data.get("wecom") or {}
+    if not isinstance(wecom, dict):
+        wecom = {}
 
     return MonitorConfig(
         timezone=str(data.get("timezone") or "Asia/Shanghai"),
@@ -71,6 +74,9 @@ def load_config(path: str | Path) -> MonitorConfig:
         schedule_interval_minutes=int(
             sched.get("interval_minutes") or data.get("schedule_interval_minutes") or 15
         ),
+        wecom_webhook_env=str(
+            wecom.get("webhook_env") or data.get("wecom_webhook_env") or "WECOM_WEBHOOK_URL_ELK"
+        ).strip(),
     )
 
 

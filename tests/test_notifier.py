@@ -4,7 +4,15 @@ import json
 import unittest
 
 from scripts.cron_task_monitor.models import Alert, AlertKind
-from scripts.cron_task_monitor.notifier import _build_payload, format_alert_text
+from scripts.cron_task_monitor.notifier import (
+    DEFAULT_WEBHOOK_ENV_ELK,
+    DEFAULT_WEBHOOK_ENV_WS,
+    _build_payload,
+    format_alert_text,
+    resolve_webhook_url,
+    resolve_webhook_url_ws,
+)
+import os
 
 
 class NotifierTests(unittest.TestCase):
@@ -39,6 +47,20 @@ class NotifierTests(unittest.TestCase):
         text = format_alert_text(alerts)
         self.assertIn("任务A", text)
         self.assertIn("执行失败", text)
+
+
+    def test_separate_webhook_env(self) -> None:
+        os.environ["WECOM_WEBHOOK_URL_ELK"] = "https://example.com/elk"
+        os.environ["WECOM_WEBHOOK_URL_WS"] = "https://example.com/ws"
+        try:
+            self.assertEqual(
+                resolve_webhook_url(DEFAULT_WEBHOOK_ENV_ELK),
+                "https://example.com/elk",
+            )
+            self.assertEqual(resolve_webhook_url_ws(None), "https://example.com/ws")
+        finally:
+            os.environ.pop("WECOM_WEBHOOK_URL_ELK", None)
+            os.environ.pop("WECOM_WEBHOOK_URL_WS", None)
 
 
 if __name__ == "__main__":
