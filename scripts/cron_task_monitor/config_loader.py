@@ -56,6 +56,7 @@ def load_config(path: str | Path) -> MonitorConfig:
         monitor_log_prefix=str(data.get("monitor_log_prefix") or "[TASK_MONITOR]"),
         tasks=tasks,
         elasticsearch=elasticsearch,
+        monitor_mode=str(data.get("monitor_mode") or "auto").strip().lower(),
     )
 
 

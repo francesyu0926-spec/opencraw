@@ -1,6 +1,9 @@
 # §2.1 定时任务监控清单（与运维文档对齐，可按现网调整）
 timezone: Asia/Shanghai
 
+# 默认监控方式：elk 只查 Elasticsearch，不检查本机 log_dir
+monitor_mode: elk
+
 # 未按时启动：实际开始时间晚于 scheduled_start 超过该分钟数
 late_start_threshold_minutes: 5
 # 执行超时：在 expected_end 之后仍未成功结束超过该分钟数

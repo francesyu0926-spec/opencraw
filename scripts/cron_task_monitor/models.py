@@ -66,3 +66,5 @@ class MonitorConfig:
     monitor_log_prefix: str
     tasks: list[TaskDefinition]
     elasticsearch: ElasticsearchConfig | None = None
+    # auto 时：配置了 elasticsearch.url 则走 elk，否则 local
+    monitor_mode: str = "auto"

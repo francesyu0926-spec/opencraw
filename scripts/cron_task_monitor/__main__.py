@@ -12,7 +12,8 @@ from .elk_client import check_elasticsearch, merge_records, query_task_from_elk
 from .elk_query import build_task_search_body
 from .evaluator import evaluate_task
 from .log_parser import analyze_local_task
-from .models import Alert
+from .mode import resolve_monitor_mode
+from .models import Alert, TaskRunRecord
 from .notifier import send_webhook
 
 
@@ -26,9 +27,9 @@ def _parse_args() -> argparse.Namespace:
     )
     p.add_argument(
         "--mode",
-        choices=("local", "elk", "both"),
-        default="local",
-        help="local=解析日志目录；elk=Elasticsearch；both=合并",
+        choices=("auto", "local", "elk", "both"),
+        default="auto",
+        help="auto=有 ES 配置则 elk；elk=只查 ELK（不读 log_dir）；local=只读本地；both=合并",
     )
     p.add_argument(
         "--task",
@@ -127,6 +128,8 @@ def run_monitor(args: argparse.Namespace) -> int:
         print(json.dumps(out, ensure_ascii=False, indent=2))
         return 0
 
+    mode = resolve_monitor_mode(cfg, args.mode)
+
     now = _resolve_now(cfg.timezone, args.at)
     tz = ZoneInfo(cfg.timezone)
 
@@ -140,16 +143,30 @@ def run_monitor(args: argparse.Namespace) -> int:
     report_rows: list[dict] = []
 
     for task in tasks:
-        local = analyze_local_task(task, tz, now, cfg.monitor_log_prefix)
-        record = local
-        if args.mode in ("elk", "both"):
+        record: TaskRunRecord
+        if mode == "elk":
             elk_rec = query_task_from_elk(cfg, task, now)
-            if args.mode == "elk" and elk_rec is not None:
+            if elk_rec is None:
+                record = TaskRunRecord(
+                    task_id=task.id,
+                    source="elk",
+                    status="missing_log",
+                )
+                record.raw_messages.append("未配置 Elasticsearch 或缺少 log_index_pattern")
+            else:
                 record = elk_rec
-            elif args.mode == "both" and elk_rec is not None:
-                record = merge_records(local, elk_rec)
+        elif mode == "local":
+            record = analyze_local_task(task, tz, now, cfg.monitor_log_prefix)
+        else:
+            local = analyze_local_task(task, tz, now, cfg.monitor_log_prefix)
+            elk_rec = query_task_from_elk(cfg, task, now)
+            record = (
+                merge_records(local, elk_rec)
+                if elk_rec is not None
+                else local
+            )
 
-        alerts = evaluate_task(cfg, task, record, now)
+        alerts = evaluate_task(cfg, task, record, now, monitor_mode=mode)
         all_alerts.extend(alerts)
         report_rows.append(
             {
@@ -180,7 +197,7 @@ def run_monitor(args: argparse.Namespace) -> int:
                 {
                     "checked_at": now.isoformat(),
                     "timezone": cfg.timezone,
-                    "mode": args.mode,
+                    "mode": mode,
                     "alert_count": len(all_alerts),
                     "tasks": report_rows,
                 },

@@ -97,11 +97,14 @@ python -m scripts.cron_task_monitor --task CBD_PUB_BOARD_INFO --print-elk-query
 
 ## 运行模式
 
+配置项 **`monitor_mode: elk`**（已在 `cron_tasks.yaml` 中设置）：**只查 ELK**，不会去本机找 `/usr/local/zxt/task/logs` 等路径。
+
 | `--mode` | 说明 |
 |----------|------|
-| `local` | 读本机 `log_dir`（需在任务服务器或挂载日志盘） |
-| `elk` | 只查 ES，适合 Windows 办公机 / 运维跳板机 |
-| `both` | 本地 + ES 合并；本地无目录时以 ES 结果为准 |
+| `auto`（默认） | 读 YAML 的 `monitor_mode`；未设置且配了 ES 则用 `elk` |
+| `elk` | 只查 ES（办公机 / 跳板机推荐） |
+| `local` | 只读本机 `log_dir`（任务服务器） |
+| `both` | 本地 + ES 合并 |
 
 退出码：`0` 无告警，`1` 有告警，`2` 配置或参数错误。
 
