@@ -13,7 +13,6 @@ class AlertKind(str, Enum):
     NO_START = "no_start"
     MISSING_LOG = "missing_log"
     WS_PROBE_FAILED = "ws_probe_failed"
-    HEALTH_CHECK_FAILED = "health_check_failed"
 
 
 @dataclass

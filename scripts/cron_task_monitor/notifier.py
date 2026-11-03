@@ -23,7 +23,6 @@ def format_alert_text(alerts: list[Alert], *, title: str | None = None) -> str:
 # §2.1 ELK 定时任务与 §2.2 WebSocket 使用不同机器人时，分别配置环境变量
 DEFAULT_WEBHOOK_ENV_ELK = "WECOM_WEBHOOK_URL_ELK"
 DEFAULT_WEBHOOK_ENV_WS = "WECOM_WEBHOOK_URL_WS"
-DEFAULT_WEBHOOK_ENV_HEALTH = "WECOM_WEBHOOK_URL_HEALTH"
 
 
 def resolve_webhook_url(webhook_env: str | None = None) -> str | None:
@@ -53,19 +52,6 @@ def resolve_webhook_url(webhook_env: str | None = None) -> str | None:
 
 def resolve_webhook_url_ws(webhook_env: str | None = None) -> str | None:
     keys = [webhook_env.strip()] if webhook_env else [DEFAULT_WEBHOOK_ENV_WS]
-    for key in keys:
-        url = os.environ.get(key, "").strip()
-        if url:
-            return url
-    return None
-
-
-def resolve_webhook_url_health(webhook_env: str | None = None) -> str | None:
-    keys = (
-        [webhook_env.strip()]
-        if webhook_env
-        else [DEFAULT_WEBHOOK_ENV_HEALTH]
-    )
     for key in keys:
         url = os.environ.get(key, "").strip()
         if url:
@@ -109,9 +95,6 @@ def send_webhook(
     if channel == "ws":
         url = resolve_webhook_url_ws(webhook_env)
         missing = webhook_env or DEFAULT_WEBHOOK_ENV_WS
-    elif channel == "health":
-        url = resolve_webhook_url_health(webhook_env)
-        missing = webhook_env or DEFAULT_WEBHOOK_ENV_HEALTH
     else:
         url = resolve_webhook_url(webhook_env or DEFAULT_WEBHOOK_ENV_ELK)
         missing = webhook_env or DEFAULT_WEBHOOK_ENV_ELK
@@ -157,6 +140,4 @@ def should_send_notify(
         return True
     if channel == "ws":
         return resolve_webhook_url_ws(webhook_env) is not None
-    if channel == "health":
-        return resolve_webhook_url_health(webhook_env) is not None
     return resolve_webhook_url(webhook_env or DEFAULT_WEBHOOK_ENV_ELK) is not None

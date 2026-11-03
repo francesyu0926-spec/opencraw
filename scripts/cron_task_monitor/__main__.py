@@ -54,16 +54,6 @@ def _parse_args() -> argparse.Namespace:
         action="store_true",
         help="§2.2 WebSocket 长驻探活（每 interval_seconds 一轮，对齐 mdimonitor schedule_task）",
     )
-    p.add_argument(
-        "--health-monitor",
-        action="store_true",
-        help="行情 API health 探活（见 config/health_monitor.yaml）",
-    )
-    p.add_argument(
-        "--health-config",
-        default="config/health_monitor.yaml",
-        help="Health API 监控配置",
-    )
     return p.parse_args()
 
 
@@ -78,18 +68,6 @@ def _resolve_now(cfg_tz: str, at: str | None) -> datetime:
 
 
 def run_monitor(args: argparse.Namespace) -> int:
-    if args.health_monitor:
-        from .health_main import run_health_monitor
-
-        return run_health_monitor(
-            Path(args.health_config),
-            at=args.at,
-            as_json=args.json,
-            dry_run=args.dry_run,
-            notify=args.notify,
-            no_notify=args.no_notify,
-        )
-
     if args.ws_daemon:
         from .ws_config import load_ws_config
         from .ws_probe import run_ws_daemon
