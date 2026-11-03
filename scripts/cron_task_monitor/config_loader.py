@@ -5,7 +5,7 @@ from typing import Any
 
 import yaml
 
-from .models import MonitorConfig, TaskDefinition
+from .models import ElasticsearchConfig, MonitorConfig, TaskDefinition
 
 
 def load_config(path: str | Path) -> MonitorConfig:
@@ -33,6 +33,16 @@ def load_config(path: str | Path) -> MonitorConfig:
             )
         )
 
+    es_raw = data.get("elasticsearch") or {}
+    elasticsearch: ElasticsearchConfig | None = None
+    if isinstance(es_raw, dict) and (es_raw.get("url") or es_raw.get("username")):
+        elasticsearch = ElasticsearchConfig(
+            url=str(es_raw.get("url") or es_raw.get("es_url") or "").strip(),
+            username=str(
+                es_raw.get("username") or es_raw.get("es_username") or ""
+            ).strip(),
+        )
+
     return MonitorConfig(
         timezone=str(data.get("timezone") or "Asia/Shanghai"),
         late_start_threshold_minutes=int(data.get("late_start_threshold_minutes", 5)),
@@ -41,6 +51,7 @@ def load_config(path: str | Path) -> MonitorConfig:
         ),
         monitor_log_prefix=str(data.get("monitor_log_prefix") or "[TASK_MONITOR]"),
         tasks=tasks,
+        elasticsearch=elasticsearch,
     )
 
 

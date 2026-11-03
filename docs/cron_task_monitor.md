@@ -31,43 +31,62 @@
 pip install -r requirements-monitor.txt
 ```
 
-## 运行
+## Elasticsearch（dcelk）
 
-在仓库根目录：
+`config/cron_tasks.yaml` 已配置：
+
+- URL：`http://dcelk.sfccn.com:9200`
+- 用户名：`quotemonitor`
+- **密码只放在环境变量**，参考 `config/elk.env.example`
+
+### Windows PowerShell
+
+```powershell
+cd D:\Document\CODE\opencraw
+$env:ELASTICSEARCH_PASSWORD = "你的密码"
+
+# 先测连通性
+python -m scripts.cron_task_monitor -c config/cron_tasks.yaml --check-elk
+
+# 在开发机上用 ELK 查任务日志（不依赖 Linux 上的 /data/zxt/... 路径）
+python -m scripts.cron_task_monitor -c config/cron_tasks.yaml --mode elk --json
+```
+
+### Linux / macOS
 
 ```bash
-# 本机日志目录（需在对应服务器上执行，或挂载相同 log_dir）
-python -m scripts.cron_task_monitor -c config/cron_tasks.yaml --mode local --json
-
-# 合并 ELK（需环境变量）
-export ELASTICSEARCH_URL=https://es.example.com:9200
-export ELASTICSEARCH_API_KEY=...
-python -m scripts.cron_task_monitor --mode both --notify
-
-# 仅检查单个任务 / 模拟时间（联调）
-python -m scripts.cron_task_monitor --task CBD_PUB_BOARD_INFO --at 2025-11-03T01:06:00+08:00 --json
+export ELASTICSEARCH_PASSWORD='你的密码'
+python -m scripts.cron_task_monitor -c config/cron_tasks.yaml --check-elk
+python -m scripts.cron_task_monitor -c config/cron_tasks.yaml --mode elk --json
 ```
+
+环境变量会 **覆盖** YAML 中的 `elasticsearch.url` / `username`（便于多环境切换）。
+
+## 运行模式
+
+| `--mode` | 说明 |
+|----------|------|
+| `local` | 读本机 `log_dir`（需在任务服务器或挂载日志盘） |
+| `elk` | 只查 ES，适合 Windows 办公机 / 运维跳板机 |
+| `both` | 本地 + ES 合并；本地无目录时以 ES 结果为准 |
 
 退出码：`0` 无告警，`1` 有告警，`2` 配置或参数错误。
 
-## Cron 示例
-
-在 **124.220.0.191** / **116.199.203** 等任务机上，于关键任务预计结束之后再跑一轮（文档要求 9 点前批任务完成，可在 02:15、08:00 等多次巡检）：
+## Cron 示例（任务机）
 
 ```cron
-15 2 * * * cd /opt/opencraw && /usr/bin/python3 -m scripts.cron_task_monitor -c config/cron_tasks.yaml --mode local --notify >> /var/log/cron_task_monitor.log 2>&1
-0 8 * * * cd /opt/opencraw && /usr/bin/python3 -m scripts.cron_task_monitor -c config/cron_tasks.yaml --mode both --notify --json >> /var/log/cron_task_monitor.log 2>&1
+15 2 * * * cd /opt/opencraw && python3 -m scripts.cron_task_monitor -c config/cron_tasks.yaml --mode local --notify
+0 8 * * * cd /opt/opencraw && python3 -m scripts.cron_task_monitor -c config/cron_tasks.yaml --mode both --notify --json
 ```
 
-## 配置
+## 配置说明
 
 编辑 `config/cron_tasks.yaml`：任务 ID、计划开始/预计结束、服务器、`log_dir`、ELK 索引模式、通知人。
 
-环境变量：
-
 | 变量 | 说明 |
 |------|------|
-| `ELASTICSEARCH_URL` / `ES_URL` | ES 地址 |
-| `ELASTICSEARCH_API_KEY` | ApiKey 认证（优先） |
-| `ELASTICSEARCH_USER` / `ELASTICSEARCH_PASSWORD` | Basic 认证 |
+| `ELASTICSEARCH_URL` / `ES_URL` | ES 地址（可选，默认读 YAML） |
+| `ELASTICSEARCH_USER` / `ES_USERNAME` | 用户名（可选，默认读 YAML） |
+| `ELASTICSEARCH_PASSWORD` / `ES_PASSWORD` | **必填**（若 ES 开启认证） |
+| `ELASTICSEARCH_API_KEY` | ApiKey 认证（优先于 Basic） |
 | `ALERT_WEBHOOK_URL` | 告警 JSON POST 地址 |

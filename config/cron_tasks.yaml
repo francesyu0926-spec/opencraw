@@ -10,6 +10,11 @@ overrun_after_end_threshold_minutes: 10
 # [TASK_MONITOR] task=<id> event=start|end status=success|failure message=...
 monitor_log_prefix: "[TASK_MONITOR]"
 
+# Elasticsearch（密码勿写入仓库，见 config/elk.env.example）
+elasticsearch:
+  url: http://dcelk.sfccn.com:9200
+  username: quotemonitor
+
 tasks:
   - id: CBD_PUB_BOARD_INFO
     name: 主题成分股

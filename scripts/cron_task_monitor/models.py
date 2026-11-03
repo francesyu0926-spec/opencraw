@@ -49,9 +49,16 @@ class Alert:
 
 
 @dataclass
+class ElasticsearchConfig:
+    url: str = ""
+    username: str = ""
+
+
+@dataclass
 class MonitorConfig:
     timezone: str
     late_start_threshold_minutes: int
     overrun_after_end_threshold_minutes: int
     monitor_log_prefix: str
     tasks: list[TaskDefinition]
+    elasticsearch: ElasticsearchConfig | None = None

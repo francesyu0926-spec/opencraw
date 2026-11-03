@@ -8,7 +8,7 @@ from pathlib import Path
 from zoneinfo import ZoneInfo
 
 from .config_loader import load_config
-from .elk_client import merge_records, query_task_from_elk
+from .elk_client import check_elasticsearch, merge_records, query_task_from_elk
 from .evaluator import evaluate_task
 from .log_parser import analyze_local_task
 from .models import Alert
@@ -60,6 +60,11 @@ def _parse_args() -> argparse.Namespace:
         metavar="TASK_ID:PATH",
         help="联调时覆盖任务的 log_dir，如 CBD_PUB_BOARD_INFO:/tmp/logs",
     )
+    p.add_argument(
+        "--check-elk",
+        action="store_true",
+        help="检测 Elasticsearch 连通性与认证（不执行任务监控）",
+    )
     return p.parse_args()
 
 
@@ -94,6 +99,15 @@ def run_monitor(args: argparse.Namespace) -> int:
         return 2
 
     cfg = load_config(config_path)
+
+    if args.check_elk:
+        ok, msg = check_elasticsearch(cfg)
+        if args.json:
+            print(json.dumps({"elk_ok": ok, "message": msg}, ensure_ascii=False))
+        else:
+            print(msg)
+        return 0 if ok else 1
+
     now = _resolve_now(cfg.timezone, args.at)
     tz = ZoneInfo(cfg.timezone)
 
