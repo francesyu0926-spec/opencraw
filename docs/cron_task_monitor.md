@@ -55,11 +55,24 @@ python -m scripts.cron_task_monitor --ws-daemon
 - **08:30–09:00** 自动跳过（不告警）
 - 单次探活失败汇总告警走 **`WECOM_WEBHOOK_URL_WS`**（`--ws-monitor`）；cron 建议 **每 10 分钟**（见 `config/schedule.example.cron`）
 
-## 告警与企业微信（两个机器人）
+## 行情 API Health
+
+```powershell
+$env:QUOTES_HEALTH_TOKEN = "JWT"   # 对应 curl --header 'Token: ...'
+$env:WECOM_WEBHOOK_URL_HEALTH = "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=..."
+python -m scripts.cron_task_monitor --health-monitor --json
+```
+
+- 等价于 `POST https://terminal.sfccn.com/terminal/quotes/api/health`，空 body，**Token** 请求头
+- 解析 JSON：根 **`status`** 与 **`checks[]`** 中每一项的 **`status`** 均须为 **`UP`**，否则告警
+- 配置：`config/health_monitor.yaml`；密钥示例 `config/health.env.example`（勿提交 Token / webhook）
+
+## 告警与企业微信（三个机器人）
 
 | 监控 | 环境变量 | 配置 |
 |------|----------|------|
 | §2.1 ELK 定时任务 | **`WECOM_WEBHOOK_URL_ELK`** | `config/cron_tasks.yaml` → `wecom.webhook_env` |
 | §2.2 WebSocket | **`WECOM_WEBHOOK_URL_WS`** | `config/ws_monitor.yaml` → `wecom.webhook_env` |
+| 行情 API Health | **`WECOM_WEBHOOK_URL_HEALTH`** | `config/health_monitor.yaml` → `wecom.webhook_env` |
 
 示例见 `config/wecom.env.example`。已配置对应变量时自动推送；**`--no-notify`** 可关闭。
