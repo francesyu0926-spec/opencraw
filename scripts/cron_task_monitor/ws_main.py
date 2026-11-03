@@ -79,6 +79,7 @@ def run_ws_monitor(
             "connected": result.connected,
             "hold_seconds": result.hold_seconds,
             "messages_received": result.messages_received,
+            "quote_items_ok": result.quote_items_ok,
             "error": result.error,
             "alert_count": len(alerts),
             "alerts": [{"message": a.message} for a in alerts],

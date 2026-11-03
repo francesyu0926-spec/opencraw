@@ -29,6 +29,9 @@ class WsMonitorTests(unittest.TestCase):
         self.assertEqual(self.cfg.subscribe_message.get("action"), "subscribe")
         self.assertEqual(self.cfg.subscribe_message.get("topic"), "quote")
         self.assertGreaterEqual(self.cfg.hold_seconds, 30)
+        self.assertEqual(self.cfg.message_must_contain, "quoteItems")
+        self.assertEqual(self.cfg.interval_seconds, 600)
+        self.assertEqual(self.cfg.wecom_webhook_env, "WECOM_WEBHOOK_URL_WS")
 
 
 if __name__ == "__main__":

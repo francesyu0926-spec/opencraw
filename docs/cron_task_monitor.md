@@ -46,13 +46,14 @@ python -m scripts.cron_task_monitor --json
 ```powershell
 pip install websockets
 python -m scripts.cron_task_monitor --ws-monitor --json
+# 或与 mdimonitor 一致的长驻循环（默认每 600 秒一轮，探活内 30 秒后主动断连）：
+python -m scripts.cron_task_monitor --ws-daemon
 ```
 
-- 地址与 subscribe 参数：`config/ws_monitor.yaml`
-- 建连 → 发送订阅 JSON → 维持 **≥30 秒** → 收到推送 → **主动关闭**
+- 地址与 subscribe 参数：`config/ws_monitor.yaml`（六大指数、`quoteItems` 校验与 mdimonitor WebSocket 客户端一致）
+- 建连 → 发送订阅 JSON → **30 秒** 定时断连 → 推送须含 **`quoteItems`**，否则记失败并可选即时企微（`WeChatBot.send_text`，daemon 模式）
 - **08:30–09:00** 自动跳过（不告警）
-- 失败走企业微信（`WECOM_WEBHOOK_URL`）
-- 建议 **每 10 分钟** 跑一次（见 `config/schedule.example.cron`）
+- 单次探活失败汇总告警走 **`WECOM_WEBHOOK_URL_WS`**（`--ws-monitor`）；cron 建议 **每 10 分钟**（见 `config/schedule.example.cron`）
 
 ## 告警与企业微信（两个机器人）
 

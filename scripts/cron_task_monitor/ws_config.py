@@ -18,6 +18,8 @@ class WsMonitorConfig:
     skip_window_start: str = "08:30"
     skip_window_end: str = "09:00"
     wecom_webhook_env: str = "WECOM_WEBHOOK_URL_WS"
+    message_must_contain: str = "quoteItems"
+    interval_seconds: int = 600
 
 
 def load_ws_config(path: str | Path) -> WsMonitorConfig:
@@ -38,4 +40,6 @@ def load_ws_config(path: str | Path) -> WsMonitorConfig:
         skip_window_start=str(skip.get("start") or "08:30"),
         skip_window_end=str(skip.get("end") or "09:00"),
         wecom_webhook_env=str(wecom.get("webhook_env") or "WECOM_WEBHOOK_URL_WS").strip(),
+        message_must_contain=str(data.get("message_must_contain") or "quoteItems"),
+        interval_seconds=int(data.get("interval_seconds") or 600),
     )

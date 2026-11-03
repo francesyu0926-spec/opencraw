@@ -49,6 +49,11 @@ def _parse_args() -> argparse.Namespace:
         default="config/ws_monitor.yaml",
         help="WebSocket 监控配置",
     )
+    p.add_argument(
+        "--ws-daemon",
+        action="store_true",
+        help="§2.2 WebSocket 长驻探活（每 interval_seconds 一轮，对齐 mdimonitor schedule_task）",
+    )
     return p.parse_args()
 
 
@@ -63,6 +68,17 @@ def _resolve_now(cfg_tz: str, at: str | None) -> datetime:
 
 
 def run_monitor(args: argparse.Namespace) -> int:
+    if args.ws_daemon:
+        from .ws_config import load_ws_config
+        from .ws_probe import run_ws_daemon
+
+        path = Path(args.ws_config)
+        if not path.is_file():
+            print(f"ws config not found: {path}", file=sys.stderr)
+            return 2
+        run_ws_daemon(load_ws_config(path))
+        return 0
+
     if args.ws_monitor:
         from .ws_main import run_ws_monitor
 
