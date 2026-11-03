@@ -9,3 +9,7 @@ config/health.env
 config/health.token.cache.json
 config/health.token.cache.json.tmp
 .env
+node_modules/
+dist/
+.git/
+.cursor/
