@@ -44,10 +44,18 @@ def resolve_query_timestamp_range(
 
     if mode in ("rolling_in_batch", "rolling"):
         start_dt, end_dt = _batch_bounds(cfg, now, tz)
+        # 已过 05:00（白天手动跑）：查当日完整批任务窗口，避免 gte>lte
+        if now >= end_dt:
+            return start_dt.isoformat(), end_dt.isoformat()
+        # 尚未到 00:00：仍查「上一段」批窗口
+        if now < start_dt:
+            prev_start = start_dt - timedelta(days=1)
+            prev_end = end_dt - timedelta(days=1)
+            return prev_start.isoformat(), prev_end.isoformat()
         interval = max(1, int(cfg.schedule_interval_minutes or 15))
         rolling_start = now - timedelta(minutes=interval)
         gte_dt = max(start_dt, rolling_start)
-        lte_dt = min(now, end_dt)
+        lte_dt = now
         return gte_dt.isoformat(), lte_dt.isoformat()
 
     if mode == "batch_window":

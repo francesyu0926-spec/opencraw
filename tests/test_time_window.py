@@ -22,6 +22,15 @@ class TimeWindowTests(unittest.TestCase):
         self.assertEqual(cfg.query_time_mode, "rolling_in_batch")
         self.assertEqual(cfg.schedule_interval_minutes, 15)
 
+    def test_after_batch_window_full_day_range(self) -> None:
+        cfg = load_config("config/cron_tasks.yaml")
+        tz = ZoneInfo(cfg.timezone)
+        ref = datetime(2025, 11, 3, 15, 50, tzinfo=tz)
+        gte, lte = resolve_query_timestamp_range(cfg, ref)
+        self.assertLess(gte, lte)
+        self.assertIn("T00:00:00", gte)
+        self.assertIn("T05:00:00", lte)
+
 
 if __name__ == "__main__":
     unittest.main()
