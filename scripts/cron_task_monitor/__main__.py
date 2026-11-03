@@ -39,6 +39,16 @@ def _parse_args() -> argparse.Namespace:
     )
     p.add_argument("--check-elk", action="store_true")
     p.add_argument("--print-elk-query", action="store_true")
+    p.add_argument(
+        "--ws-monitor",
+        action="store_true",
+        help="§2.2 WebSocket 探活（见 config/ws_monitor.yaml）",
+    )
+    p.add_argument(
+        "--ws-config",
+        default="config/ws_monitor.yaml",
+        help="WebSocket 监控配置",
+    )
     return p.parse_args()
 
 
@@ -53,6 +63,18 @@ def _resolve_now(cfg_tz: str, at: str | None) -> datetime:
 
 
 def run_monitor(args: argparse.Namespace) -> int:
+    if args.ws_monitor:
+        from .ws_main import run_ws_monitor
+
+        return run_ws_monitor(
+            Path(args.ws_config),
+            at=args.at,
+            as_json=args.json,
+            dry_run=args.dry_run,
+            notify=args.notify,
+            no_notify=args.no_notify,
+        )
+
     config_path = Path(args.config)
     if not config_path.is_file():
         print(f"config not found: {config_path}", file=sys.stderr)

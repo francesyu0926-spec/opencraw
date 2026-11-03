@@ -41,6 +41,19 @@ python -m scripts.cron_task_monitor --json
 | `batch_window` | 当日 `00:00` 至 `min(now, 05:00)` |
 | `elastic` | 使用 YAML 里 `timestamp_gte` / `timestamp_lte`（如 `now/d`） |
 
+## §2.2 WebSocket 探活
+
+```powershell
+pip install websockets
+python -m scripts.cron_task_monitor --ws-monitor --json
+```
+
+- 地址与 subscribe 参数：`config/ws_monitor.yaml`
+- 建连 → 发送订阅 JSON → 维持 **≥30 秒** → 收到推送 → **主动关闭**
+- **08:30–09:00** 自动跳过（不告警）
+- 失败走企业微信（`WECOM_WEBHOOK_URL`）
+- 建议 **每 10 分钟** 跑一次（见 `config/schedule.example.cron`）
+
 ## 告警与企业微信
 
 有告警且配置了 **`WECOM_WEBHOOK_URL`** 时自动推送；加 **`--no-notify`** 可关闭。

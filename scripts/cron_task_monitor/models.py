@@ -12,6 +12,7 @@ class AlertKind(str, Enum):
     OVERTIME = "execution_overtime"
     NO_START = "no_start"
     MISSING_LOG = "missing_log"
+    WS_PROBE_FAILED = "ws_probe_failed"
 
 
 @dataclass
