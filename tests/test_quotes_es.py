@@ -26,7 +26,7 @@ class TestQuotesEsQuery(unittest.TestCase):
         self.assertEqual(len(bool_q["should"]), 2)
         self.assertEqual(bool_q["minimum_should_match"], 1)
         ts = bool_q["filter"][0]["range"]["@timestamp"]
-        self.assertEqual(ts["gte"], "now-15m")
+        self.assertEqual(ts["gte"], "now-15m")  # build_mdimonitor_query 默认；配置里为 now/d
         self.assertEqual(ts["lte"], "now")
 
 

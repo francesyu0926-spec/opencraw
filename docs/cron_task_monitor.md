@@ -4,7 +4,7 @@
 
 1. 一次 ES 查询：`logstash-zxt-terminal-task-*` + `logstash-sync-mongo-*`
 2. `bool.should`：对每个任务 id 做 `match(msg, keyword)`
-3. 时间窗：`now-15m` ~ `now`
+3. 时间窗：**`now/d` ~ `now`**（覆盖 PDF 中 00:00–04:05 批任务；滚动探活可改 `now-15m`）
 4. 扫 hit 解析三类日志：
    - `开始执行任务: …,执行时间：…` → 延迟启动 > 5 分钟
    - `任务执行完成:…,耗时：…秒` → 耗时 > 计划时长 + 10 分钟
