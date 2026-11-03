@@ -15,11 +15,14 @@
 ```powershell
 pip install -r requirements-monitor.txt
 $env:ELASTICSEARCH_PASSWORD = "密码"
+$env:WECOM_WEBHOOK_URL = "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=你的key"
 
 python -m scripts.cron_task_monitor --check-elk
 python -m scripts.cron_task_monitor --print-elk-query
 python -m scripts.cron_task_monitor --json
 ```
+
+有告警且已配置 **`WECOM_WEBHOOK_URL`** 时，会**自动**推送企业微信文本消息（`msgtype: text`）。仅本地看结果可加 **`--no-notify`**。
 
 ## 配置
 

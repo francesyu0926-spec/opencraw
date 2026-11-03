@@ -11,7 +11,7 @@ from .config_loader import load_config
 from .elk_client import check_elasticsearch
 from .mdimonitor_checks import run_mdimonitor_checks
 from .models import Alert, AlertKind
-from .notifier import send_webhook
+from .notifier import send_webhook, should_send_notify
 from .quote_utils import msg_keywords_from_config
 from .quotes_es import build_query_from_config, default_indices, search_hits
 
@@ -27,7 +27,16 @@ def _parse_args() -> argparse.Namespace:
     p.add_argument("--at", help="模拟当前时间 ISO8601")
     p.add_argument("--json", action="store_true")
     p.add_argument("--dry-run", action="store_true")
-    p.add_argument("--notify", action="store_true")
+    p.add_argument(
+        "--notify",
+        action="store_true",
+        help="有告警时发企业微信（已配置 WECOM_WEBHOOK_URL 时默认也会发）",
+    )
+    p.add_argument(
+        "--no-notify",
+        action="store_true",
+        help="不发送企业微信",
+    )
     p.add_argument("--check-elk", action="store_true")
     p.add_argument("--print-elk-query", action="store_true")
     return p.parse_args()
@@ -99,37 +108,39 @@ def run_monitor(args: argparse.Namespace) -> int:
         alerts = run_mdimonitor_checks(cfg, hits, keywords, now)
         hit_count = len(hits)
 
+    notify_ok: bool | None = None
+    notify_msg = ""
+    if alerts and not args.no_notify and should_send_notify(args.notify, args.dry_run):
+        notify_ok, notify_msg = send_webhook(alerts)
+
     if args.json:
-        print(
-            json.dumps(
+        payload: dict = {
+            "checked_at": now.isoformat(),
+            "timezone": cfg.timezone,
+            "mode": MONITOR_MODE,
+            "hit_count": hit_count,
+            "alert_count": len(alerts),
+            "alerts": [
                 {
-                    "checked_at": now.isoformat(),
-                    "timezone": cfg.timezone,
-                    "mode": MONITOR_MODE,
-                    "hit_count": hit_count,
-                    "alert_count": len(alerts),
-                    "alerts": [
-                        {
-                            "kind": a.kind.value,
-                            "severity": a.severity,
-                            "message": a.message,
-                        }
-                        for a in alerts
-                    ],
-                },
-                ensure_ascii=False,
-                indent=2,
-            )
-        )
+                    "kind": a.kind.value,
+                    "severity": a.severity,
+                    "message": a.message,
+                }
+                for a in alerts
+            ],
+        }
+        if notify_ok is not None:
+            payload["wecom_notify"] = notify_ok
+            payload["wecom_message"] = notify_msg
+        print(json.dumps(payload, ensure_ascii=False, indent=2))
     else:
         print(
             f"checked_at={now.isoformat()} hits={hit_count} alerts={len(alerts)}"
         )
         for a in alerts:
             print(f"! {a.severity} {a.kind.value}: {a.message}")
-
-    if alerts and args.notify and not args.dry_run:
-        send_webhook(alerts)
+        if notify_ok is not None:
+            print(f"wecom_notify={'ok' if notify_ok else 'fail'} {notify_msg}")
 
     return 1 if alerts else 0
 

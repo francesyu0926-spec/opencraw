@@ -4,4 +4,5 @@ __pycache__/
 .venv/
 venv/
 config/elk.env
+config/wecom.env
 .env
