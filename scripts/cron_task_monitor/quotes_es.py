@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from datetime import datetime
 from typing import Any
 
 from .elasticsearch_settings import ElasticsearchSettings, auth_headers, resolve_elasticsearch
@@ -43,13 +44,17 @@ def build_mdimonitor_query(
 def build_query_from_config(
     cfg: MonitorConfig,
     msg_keywords: list[str],
+    ref: datetime | None = None,
 ) -> dict[str, Any]:
+    from .time_window import resolve_query_timestamp_range
+
     es = cfg.elasticsearch or ElasticsearchConfig()
+    gte, lte = resolve_query_timestamp_range(cfg, ref)
     return build_mdimonitor_query(
         msg_keywords,
         message_field=es.message_field or "msg",
-        timestamp_gte=es.timestamp_gte or "now-15m",
-        timestamp_lte=es.timestamp_lte or "now",
+        timestamp_gte=gte,
+        timestamp_lte=lte,
         size=es.query_size or 1000,
     )
 
@@ -74,13 +79,17 @@ def create_es_client(settings: ElasticsearchSettings):
     return Elasticsearch(hosts, **kwargs)
 
 
-def search_hits(cfg: MonitorConfig, msg_keywords: list[str]) -> tuple[list[dict], str | None]:
+def search_hits(
+    cfg: MonitorConfig,
+    msg_keywords: list[str],
+    ref: datetime | None = None,
+) -> tuple[list[dict], str | None]:
     """返回 (hits, error)。优先 elasticsearch 库，失败时回退 urllib。"""
     settings = resolve_elasticsearch(cfg)
     if not settings:
         return [], "未配置 Elasticsearch"
 
-    body = build_query_from_config(cfg, msg_keywords)
+    body = build_query_from_config(cfg, msg_keywords, ref)
     indices = default_indices(cfg)
 
     try:

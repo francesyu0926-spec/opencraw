@@ -71,12 +71,18 @@ def run_monitor(args: argparse.Namespace) -> int:
     selected = set(args.task_ids or [])
     keywords = msg_keywords_from_config(cfg, selected or None)
 
+    now = _resolve_now(cfg.timezone, args.at)
+
     if args.print_elk_query:
+        from .time_window import resolve_query_timestamp_range
+
+        gte, lte = resolve_query_timestamp_range(cfg, now)
         print(
             json.dumps(
                 {
                     "index": default_indices(cfg),
-                    "body": build_query_from_config(cfg, keywords),
+                    "query_time_range": {"gte": gte, "lte": lte, "timezone": cfg.timezone},
+                    "body": build_query_from_config(cfg, keywords, now),
                     "msg_keywords": keywords,
                 },
                 ensure_ascii=False,
@@ -89,8 +95,7 @@ def run_monitor(args: argparse.Namespace) -> int:
         print("no tasks matched", file=sys.stderr)
         return 2
 
-    now = _resolve_now(cfg.timezone, args.at)
-    hits, err = search_hits(cfg, keywords)
+    hits, err = search_hits(cfg, keywords, now)
 
     if err:
         alerts: list[Alert] = [

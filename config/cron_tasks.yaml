@@ -1,8 +1,12 @@
 # §2.1 定时任务监控清单（与运维 PDF 对齐，2026 版任务时间）
 timezone: Asia/Shanghai
 
-# 文档要求：08:30–09:15 前批任务应完成；巡检 ES 查当日 00:00 起日志
+# 定时巡检：每天 00:00–05:00（Asia/Shanghai）查 ELK；建议 cron 在 05:05 再跑一轮终检
 monitor_mode: elk
+query_time_mode: batch_window
+batch_window:
+  start: "00:00"
+  end: "05:00"
 critical_window:
   start: "08:30"
   end: "09:15"
@@ -16,7 +20,7 @@ elasticsearch:
   url: http://dcelk.sfccn.com:9200
   username: quotemonitor
   message_field: msg
-  # 批任务在凌晨 00:00–04:05，白天巡检用当天 0 点至今
+  # query_time_mode=batch_window 时以下两项忽略；改为 elastic 模式时生效
   timestamp_gte: now/d
   timestamp_lte: now
   query_size: 1000

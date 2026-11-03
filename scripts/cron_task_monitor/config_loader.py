@@ -48,6 +48,10 @@ def load_config(path: str | Path) -> MonitorConfig:
             indices=list(es_raw.get("indices") or []) or None,
         )
 
+    bw = data.get("batch_window") or {}
+    if not isinstance(bw, dict):
+        bw = {}
+
     return MonitorConfig(
         timezone=str(data.get("timezone") or "Asia/Shanghai"),
         late_start_threshold_minutes=int(data.get("late_start_threshold_minutes", 5)),
@@ -58,6 +62,9 @@ def load_config(path: str | Path) -> MonitorConfig:
         tasks=tasks,
         elasticsearch=elasticsearch,
         monitor_mode=str(data.get("monitor_mode") or "auto").strip().lower(),
+        query_time_mode=str(data.get("query_time_mode") or "batch_window").strip(),
+        batch_window_start=str(bw.get("start") or data.get("batch_window_start") or "00:00"),
+        batch_window_end=str(bw.get("end") or data.get("batch_window_end") or "05:00"),
     )
 
 

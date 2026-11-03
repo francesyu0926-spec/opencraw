@@ -29,10 +29,11 @@ class TaskScheduleTests(unittest.TestCase):
             self.assertEqual(task.scheduled_start, start, task_id)
             self.assertEqual(task.expected_end, end, task_id)
 
-    def test_es_covers_batch_window(self) -> None:
+    def test_batch_window_config(self) -> None:
         cfg = load_config("config/cron_tasks.yaml")
-        assert cfg.elasticsearch is not None
-        self.assertEqual(cfg.elasticsearch.timestamp_gte, "now/d")
+        self.assertEqual(cfg.query_time_mode, "batch_window")
+        self.assertEqual(cfg.batch_window_start, "00:00")
+        self.assertEqual(cfg.batch_window_end, "05:00")
 
 
 if __name__ == "__main__":

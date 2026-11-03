@@ -4,7 +4,7 @@
 
 1. 一次 ES 查询：`logstash-zxt-terminal-task-*` + `logstash-sync-mongo-*`
 2. `bool.should`：对每个任务 id 做 `match(msg, keyword)`
-3. 时间窗：**`now/d` ~ `now`**（覆盖 PDF 中 00:00–04:05 批任务；滚动探活可改 `now-15m`）
+3. 时间窗：**北京时间每天 `00:00`–`05:00`**（`query_time_mode: batch_window`）；凌晨巡检时 `lte` 为当前时刻，5 点后终检固定到当日 05:00
 4. 扫 hit 解析三类日志：
    - `开始执行任务: …,执行时间：…` → 延迟启动 > 5 分钟
    - `任务执行完成:…,耗时：…秒` → 耗时 > 计划时长 + 10 分钟
@@ -23,6 +23,14 @@ python -m scripts.cron_task_monitor --json
 ```
 
 有告警且已配置 **`WECOM_WEBHOOK_URL`** 时，会**自动**推送企业微信文本消息（`msgtype: text`）。仅本地看结果可加 **`--no-notify`**。
+
+### 建议 Cron（Windows 任务计划程序 / Linux cron）
+
+在 **00:00–05:00** 间可每 15–30 分钟跑一次；**05:05** 做终检（查询窗口仍为当日 00:00–05:00）：
+
+```cron
+5 5 * * * cd /opt/opencraw && python3 -m scripts.cron_task_monitor --json
+```
 
 ## 配置
 
