@@ -6,6 +6,8 @@ import unittest
 from pathlib import Path
 
 from scripts.cron_task_monitor.env_file import (
+    HealthEnvLoadReport,
+    credential_env_hint,
     find_repo_root,
     load_env_file,
     load_health_monitor_env_files,
@@ -92,6 +94,25 @@ class EnvFileTests(unittest.TestCase):
     def test_find_repo_root_from_module(self) -> None:
         root = find_repo_root()
         self.assertTrue((root / "config" / "health_monitor.yaml").is_file())
+
+    def test_credential_env_hint_when_file_missing(self) -> None:
+        report = HealthEnvLoadReport(
+            repo_root="/repo",
+            health_env_path="/repo/config/health.env",
+            health_env_exists=False,
+            health_env_keys_loaded=0,
+            wecom_env_path="/repo/config/wecom.env",
+            wecom_env_exists=False,
+            wecom_env_keys_loaded=0,
+        )
+        hint = credential_env_hint(
+            report,
+            login_code_env="QUOTES_LOGIN_CODE",
+            login_password_env="QUOTES_LOGIN_PASSWORD",
+            token_env="QUOTES_HEALTH_TOKEN",
+        )
+        self.assertIn("未找到", hint)
+        self.assertIn("health.env.example", hint)
 
     def test_load_health_monitor_env_ignores_cwd(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
