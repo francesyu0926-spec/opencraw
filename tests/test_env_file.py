@@ -95,20 +95,23 @@ class EnvFileTests(unittest.TestCase):
 
     def test_load_health_monitor_env_ignores_cwd(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
-            root = Path(tmp)
+            base = Path(tmp)
+            root = base / "repo"
+            root.mkdir()
             (root / "config").mkdir()
             (root / "scripts" / "cron_task_monitor").mkdir(parents=True)
             (root / "config" / "health.env").write_text(
                 "QUOTES_LOGIN_CODE=from_repo_root\n", encoding="utf-8"
             )
+            other_cwd = base / "elsewhere"
+            other_cwd.mkdir()
             keys = ("QUOTES_LOGIN_CODE",)
             saved = {k: os.environ.pop(k, None) for k in keys}
             orig_cwd = os.getcwd()
             try:
-                with tempfile.TemporaryDirectory() as other_cwd:
-                    os.chdir(other_cwd)
-                    load_health_monitor_env_files(repo_root=root)
-                    self.assertEqual(os.environ["QUOTES_LOGIN_CODE"], "from_repo_root")
+                os.chdir(other_cwd)
+                load_health_monitor_env_files(repo_root=root)
+                self.assertEqual(os.environ["QUOTES_LOGIN_CODE"], "from_repo_root")
             finally:
                 os.chdir(orig_cwd)
                 for k in keys:
