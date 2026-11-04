@@ -7,14 +7,13 @@
 | Job | 频率 | 运行窗口 |
 |-----|------|----------|
 | `elk` | 每 **15** 分钟 | **00:00–05:00**（数据同步定时任务） |
-| `ws` | 每 **15** 分钟 | **09:00–15:30** |
+| `ws` | 每 **10** 分钟 | **09:00–15:30**（模拟客户端探活） |
 | `health` | 每 **15** 分钟 | **09:00–23:39** |
 
-任务计划 / cron：**每 15 分钟**触发一次（全天）。
+任务计划 / cron：**每 5 分钟**触发调度器（WS 10 分钟 / health·elk 15 分钟到期才执行）。
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File scripts\run_monitor_production.ps1 -Json
-powershell -ExecutionPolicy Bypass -File scripts\run_monitor_production.ps1 -Json -NotifySuccess
 ```
 
 ```bash
@@ -64,19 +63,24 @@ python -m scripts.cron_task_monitor --json
 | `batch_window` | 当日 `00:00` 至 `min(now, 05:00)` |
 | `elastic` | 使用 YAML 里 `timestamp_gte` / `timestamp_lte`（如 `now/d`） |
 
-## §2.2 WebSocket 探活
+## §2.2 WebSocket 探活（模拟客户端 / 模拟用户）
+
+运维侧独立 **监控客户端**，**每 10 分钟** 一轮（`config/ws_monitor.yaml` → `interval_seconds: 600`；生产见 `monitor_schedule.production.yaml`）：
+
+1. **能否成功建立连接**（`connect_timeout_seconds`）
+2. **能否维持连接 > 30 秒**（`hold_seconds`，计时结束后 **主动 `close`**，避免长连占资源）
+3. **能否正确收发消息**：发送订阅 JSON → 至少收到 1 条推送，且含 **`quoteItems`**（视为业务行情消息正常；失败即告警）
+4. **失败则告警**（仅失败）：`--ws-monitor` / 统一调度走 **`WECOM_WEBHOOK_URL_WS`**；成功不发企微
 
 ```powershell
 pip install websockets
 python -m scripts.cron_task_monitor --ws-monitor --json
-# 或与 mdimonitor 一致的长驻循环（默认每 600 秒一轮，探活内 30 秒后主动断连）：
+# 长驻单进程（内置每 10 分钟一轮，逻辑同上）：
 python -m scripts.cron_task_monitor --ws-daemon
 ```
 
-- 地址与 subscribe 参数：`config/ws_monitor.yaml`（六大指数、`quoteItems` 校验与 mdimonitor WebSocket 客户端一致）
-- 建连 → 发送订阅 JSON → **30 秒** 定时断连 → 推送须含 **`quoteItems`**，否则记失败并可选即时企微（`WeChatBot.send_text`，daemon 模式）
-- **08:30–09:00** 自动跳过（不告警）
-- 单次探活失败汇总告警走 **`WECOM_WEBHOOK_URL_WS`**（`--ws-monitor`）；cron 建议 **每 10 分钟**（见 `config/schedule.example.cron`）
+- 配置：`config/ws_monitor.yaml`（六大指数订阅，与行情客户端一致）
+- **08:30–09:00** 自动跳过（不告警、不探活）
 
 ## 行情 API Health
 
@@ -106,10 +110,12 @@ Windows 计划任务可直接跑 `scripts/run_health_monitor.ps1`（同样会加
 
 ## 告警与企业微信（三个机器人）
 
+**策略：仅失败告警。** ELK / WebSocket / health 探活**成功时不发企微**；只有产生 `alerts`（或 WS/health 探活失败）且已配置对应 webhook 时才会推送。统一调度**不要**加 `--notify-success` / `-NotifySuccess`（该参数仅用于偶发联调成功汇总）。
+
 | 监控 | 环境变量 | 配置 |
 |------|----------|------|
 | §2.1 ELK 定时任务 | **`WECOM_WEBHOOK_URL_ELK`** | `config/cron_tasks.yaml` → `wecom.webhook_env` |
 | §2.2 WebSocket | **`WECOM_WEBHOOK_URL_WS`** | `config/ws_monitor.yaml` → `wecom.webhook_env` |
 | 行情 API Health | **`WECOM_WEBHOOK_URL_HEALTH`** | `config/health_monitor.yaml` → `wecom.webhook_env` |
 
-示例见 `config/wecom.env.example`。已配置对应变量时自动推送；**`--no-notify`** 可关闭。
+示例见 `config/wecom.env.example`。已配置对应变量时，**失败**自动推送；**`--no-notify`** 可关闭全部通知。

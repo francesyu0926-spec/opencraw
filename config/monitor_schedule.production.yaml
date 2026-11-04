@@ -1,8 +1,8 @@
 # 生产监控时刻表（由 scripts/run_monitor_production.* 使用）
-# 任务计划 / cron：每 15 分钟触发一次调度器（全天）
+# 任务计划 / cron：每 5 分钟触发调度器（与各 job 间隔 10/15 分钟对齐）
 timezone: Asia/Shanghai
 
-dispatcher_interval_minutes: 15
+dispatcher_interval_minutes: 5
 
 jobs:
   elk:
@@ -15,8 +15,8 @@ jobs:
 
   ws:
     enabled: true
-    description: WebSocket 行情接口探活
-    interval_minutes: 15
+    description: WebSocket 模拟客户端探活（每 10 分钟，维持>30s 后主动断连）
+    interval_minutes: 10
     active_start: "09:00"
     active_end: "15:30"
     config: config/ws_monitor.yaml

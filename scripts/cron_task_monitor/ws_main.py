@@ -78,6 +78,8 @@ def run_ws_monitor(
             "ok": result.ok and not result.skipped or (result.skipped and not alerts),
             "connected": result.connected,
             "hold_seconds": result.hold_seconds,
+            "connected_seconds": result.connected_seconds,
+            "subscribe_sent": result.subscribe_sent,
             "messages_received": result.messages_received,
             "quote_items_ok": result.quote_items_ok,
             "error": result.error,

@@ -32,6 +32,6 @@ services:
         while true; do
           python -m scripts.cron_task_monitor --run-scheduled \
             --schedule-config config/monitor_schedule.production.yaml \
-            --json --notify-success || true
+            --json || true
           sleep 900
         done

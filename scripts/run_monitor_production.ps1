@@ -12,7 +12,6 @@ param(
     [switch]$Json,
     [switch]$DryRun,
     [switch]$Force,
-    [switch]$NotifySuccess,
     [string[]]$Job
 )
 
@@ -25,7 +24,6 @@ $params = @{
     DryRun         = $DryRun
     Force          = $Force
 }
-if ($NotifySuccess) { $params.NotifySuccess = $true }
 if ($Job) { $params.Job = $Job }
 
 & $forward @params

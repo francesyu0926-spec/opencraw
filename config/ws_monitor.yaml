@@ -1,18 +1,21 @@
-# §2.2 WebSocket 接口监控（模拟客户端探活）
+# §2.2 WebSocket 模拟客户端探活（模拟用户）
+# 运维侧独立监控客户端：每 10 分钟一轮（见 monitor_schedule.production.yaml / --ws-daemon）
+# 1) 建立连接  2) 维持 > hold_seconds  3) 发送订阅并收到含 message_must_contain 的推送
+# 4) 到时主动 close，避免长连占资源  5) 失败则告警（仅失败，见 ws_main）
 timezone: Asia/Shanghai
 
-# 08:30–09:00 不监控（文档要求）
+# 08:30–09:00 不监控（与开盘前窗口错开）
 skip_window:
   start: "08:30"
   end: "09:00"
 
-# 建议任务计划：每 10 分钟执行 python -m scripts.cron_task_monitor --ws-monitor
-
 url: wss://terminal.sfccn.com/terminal/quotes/wsUrl/ws-quote
 connect_timeout_seconds: 15
+# 必须维持连接超过该秒数（探活内会 schedule 主动断连）
 hold_seconds: 30
-# 长驻 --ws-daemon 时两轮探活间隔（秒）；cron 单次探活用 --ws-monitor 即可
+# --ws-daemon 长驻时两轮间隔（秒），默认 600 = 10 分钟
 interval_seconds: 600
+# 行情推送 JSON 须包含该字段，视为“正确收到业务消息”
 message_must_contain: quoteItems
 notify: 高德建
 

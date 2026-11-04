@@ -88,7 +88,7 @@ def _parse_args() -> argparse.Namespace:
     p.add_argument(
         "--notify-success",
         action="store_true",
-        help="统一调度全部成功时向 ELK 企微机器人发送汇总（--no-notify 可关闭）",
+        help="（可选）统一调度全部成功时发 ELK 企微汇总；默认关闭，生产仅失败告警",
     )
     return p.parse_args()
 
