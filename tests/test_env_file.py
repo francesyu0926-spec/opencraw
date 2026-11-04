@@ -5,7 +5,11 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from scripts.cron_task_monitor.env_file import load_env_file
+from scripts.cron_task_monitor.env_file import (
+    find_repo_root,
+    load_env_file,
+    load_health_monitor_env_files,
+)
 
 
 class EnvFileTests(unittest.TestCase):
@@ -44,6 +48,73 @@ class EnvFileTests(unittest.TestCase):
                 self.assertEqual(os.environ["QUOTES_LOGIN_CODE"], "already_set")
             finally:
                 os.environ.pop("QUOTES_LOGIN_CODE", None)
+
+    def test_load_env_file_overrides_empty_existing(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            env_path = Path(tmp) / "health.env"
+            env_path.write_text(
+                "QUOTES_LOGIN_CODE=from_file\n"
+                "QUOTES_LOGIN_PASSWORD=secret\n",
+                encoding="utf-8",
+            )
+            os.environ["QUOTES_LOGIN_CODE"] = ""
+            os.environ["QUOTES_LOGIN_PASSWORD"] = "   "
+            keys = ("QUOTES_LOGIN_CODE", "QUOTES_LOGIN_PASSWORD")
+            try:
+                n = load_env_file(env_path)
+                self.assertEqual(n, 2)
+                self.assertEqual(os.environ["QUOTES_LOGIN_CODE"], "from_file")
+                self.assertEqual(os.environ["QUOTES_LOGIN_PASSWORD"], "secret")
+            finally:
+                for k in keys:
+                    os.environ.pop(k, None)
+
+    def test_load_env_file_utf8_bom(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            env_path = Path(tmp) / "health.env"
+            env_path.write_bytes(
+                b"\xef\xbb\xbfQUOTES_LOGIN_CODE=bom_key\n"
+                b"QUOTES_LOGIN_PASSWORD=bom_val\n"
+            )
+            keys = ("QUOTES_LOGIN_CODE", "QUOTES_LOGIN_PASSWORD")
+            saved = {k: os.environ.pop(k, None) for k in keys}
+            try:
+                n = load_env_file(env_path)
+                self.assertEqual(n, 2)
+                self.assertEqual(os.environ["QUOTES_LOGIN_CODE"], "bom_key")
+            finally:
+                for k in keys:
+                    if saved[k] is None:
+                        os.environ.pop(k, None)
+                    else:
+                        os.environ[k] = saved[k]
+
+    def test_find_repo_root_from_module(self) -> None:
+        root = find_repo_root()
+        self.assertTrue((root / "config" / "health_monitor.yaml").is_file())
+
+    def test_load_health_monitor_env_ignores_cwd(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "config").mkdir()
+            (root / "scripts" / "cron_task_monitor").mkdir(parents=True)
+            (root / "config" / "health.env").write_text(
+                "QUOTES_LOGIN_CODE=from_repo_root\n", encoding="utf-8"
+            )
+            keys = ("QUOTES_LOGIN_CODE",)
+            saved = {k: os.environ.pop(k, None) for k in keys}
+            orig_cwd = os.getcwd()
+            try:
+                os.chdir("/tmp")
+                load_health_monitor_env_files(root)
+                self.assertEqual(os.environ["QUOTES_LOGIN_CODE"], "from_repo_root")
+            finally:
+                os.chdir(orig_cwd)
+                for k in keys:
+                    if saved[k] is None:
+                        os.environ.pop(k, None)
+                    else:
+                        os.environ[k] = saved[k]
 
 
 if __name__ == "__main__":
