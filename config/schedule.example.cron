@@ -1,8 +1,10 @@
-# 统一监控调度（推荐）：每 5 分钟执行 HTTP health / WS / ELK（见 config/monitor_schedule.yaml）
+# 生产监控调度（推荐）：每 15 分钟（见 config/monitor_schedule.production.yaml）
 SHELL=/bin/bash
 PATH=/usr/local/bin:/usr/bin:/bin
 
-*/5 * * * * /opt/opencraw/scripts/run_scheduled_monitors.sh >> /var/log/opencraw_monitors.log 2>&1
+*/15 * * * * /opt/opencraw/scripts/run_monitor_production.sh >> /var/log/opencraw_monitors.log 2>&1
+
+# 开发/旧表：每 5 分钟 run_scheduled_monitors.sh + monitor_schedule.yaml
 
 # --- 以下为拆分 cron（可选，与统一调度二选一）---
 # */15 0-4 * * * ... python3 -m scripts.cron_task_monitor -c config/cron_tasks.yaml

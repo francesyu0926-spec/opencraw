@@ -1,31 +1,34 @@
 # 定时任务监控（§2.1）
 
-## 统一调度（推荐）
+## 生产调度（推荐）
 
-一次计划任务跑齐 **HTTP health**、**WebSocket**、**ELK 数据同步** 监控，时刻表见 `config/monitor_schedule.yaml`：
+时刻表见 `config/monitor_schedule.production.yaml`，入口 **`scripts/run_monitor_production.ps1`** / **`run_monitor_production.sh`**：
 
 | Job | 频率 | 运行窗口 |
 |-----|------|----------|
-| `health` | 每 **5** 分钟 | 全天 |
-| `ws` | 每 **10** 分钟 | 全天（08:30–09:00 探活内跳过） |
-| `elk` | 每 **15** 分钟 | **00:00–05:00** |
+| `elk` | 每 **15** 分钟 | **00:00–05:00**（数据同步定时任务） |
+| `ws` | 每 **15** 分钟 | **09:00–15:30** |
+| `health` | 每 **15** 分钟 | **09:00–23:39** |
 
-调度器建议 **每 5 分钟** 触发一次（与各 interval 的最小公倍数对齐）。
+任务计划 / cron：**每 15 分钟**触发一次（全天）。
 
 ```powershell
-# 手动（加载 config/elk.env、health.env、wecom.env）
-powershell -ExecutionPolicy Bypass -File scripts\run_scheduled_monitors.ps1 -Json
-
-# 或 Python
-python -m scripts.cron_task_monitor --run-scheduled --json
-python -m scripts.cron_task_monitor --run-scheduled --force-scheduled --job health --json  # 忽略时刻表只跑 health
+powershell -ExecutionPolicy Bypass -File scripts\run_monitor_production.ps1 -Json
+powershell -ExecutionPolicy Bypass -File scripts\run_monitor_production.ps1 -Json -NotifySuccess
 ```
 
-**Windows 任务计划**：触发器 **每天**，重复间隔 **5 分钟**，持续 **1 天**；操作：
+```bash
+python -m scripts.cron_task_monitor --run-scheduled \
+  --schedule-config config/monitor_schedule.production.yaml --json
+```
 
-`powershell.exe -ExecutionPolicy Bypass -File D:\Document\CODE\opencraw\scripts\run_scheduled_monitors.ps1 -Json`
+**Windows 任务计划**：每天重复，间隔 **15 分钟**；程序见上。
 
-**Linux cron**：见 `config/schedule.example.cron`（`scripts/run_scheduled_monitors.sh`）。
+**Linux cron**：`*/15 * * * * .../run_monitor_production.sh`（见 `config/schedule.example.cron`）。
+
+## 统一调度（开发/旧表）
+
+`config/monitor_schedule.yaml`：health 5 分钟 / ws 10 分钟 / elk 0–5 点 15 分钟；调度器 **每 5 分钟**。入口 `scripts/run_scheduled_monitors.ps1`。
 
 密钥文件（均 gitignore）：`config/elk.env`、`config/health.env`、`config/wecom.env`（示例见 `*.example`）。
 

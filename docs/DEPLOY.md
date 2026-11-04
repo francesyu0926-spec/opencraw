@@ -8,15 +8,18 @@
 |------|------|
 | `requirements-monitor.txt` | Python 依赖 |
 | `Dockerfile` / `.dockerignore` | 容器部署（可选） |
-| `config/monitor_schedule.yaml` | 统一调度时刻表 |
+| `config/monitor_schedule.production.yaml` | **生产**调度时刻表 |
+| `config/monitor_schedule.yaml` | 开发/旧调度时刻表 |
 | `config/cron_tasks.yaml` | ELK 任务与索引配置 |
 | `config/ws_monitor.yaml` | WebSocket 探活配置 |
 | `config/health_monitor.yaml` | HTTP health 配置 |
 | `config/*.env.example` | 密钥模板（复制后填写，勿提交 Git） |
 | `config/schedule.example.cron` | Linux cron 示例 |
 | `scripts/cron_task_monitor/` | 监控程序 |
-| `scripts/run_scheduled_monitors.ps1` | Windows 统一调度入口 |
-| `scripts/run_scheduled_monitors.sh` | Linux 统一调度入口 |
+| `scripts/run_monitor_production.ps1` | **Windows 生产调度入口** |
+| `scripts/run_monitor_production.sh` | **Linux 生产调度入口** |
+| `scripts/run_scheduled_monitors.ps1` | Windows 开发/旧调度入口 |
+| `scripts/run_scheduled_monitors.sh` | Linux 开发/旧调度入口 |
 | `scripts/run_health_monitor.ps1` | 仅 health（可选） |
 | `scripts/run_monitor_scheduled.ps1` | 兼容旧 ELK 计划任务（可选） |
 | `docs/cron_task_monitor.md` | 功能与告警说明 |

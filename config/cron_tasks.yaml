@@ -38,7 +38,7 @@ elasticsearch:
 
 tasks:
   # --- logstash-sync-mongo-* / 124.220.0.191 ---
-  - id: CBD_PUB_BOARD_INFO
+  - id: CBD_PUB_BOAR_INFO
     name: 主题成分股
     scheduled_start: "01:00"
     expected_end: "01:03"
@@ -47,7 +47,7 @@ tasks:
     log_dir: "/data/zxt/sync-mongo/logs"
     notify: 阳祥风
 
-  - id: CBD_BOARD_INFO
+  - id: CBD_BOAR_INFO
     name: 主题
     scheduled_start: "01:00"
     expected_end: "01:05"
@@ -95,8 +95,8 @@ tasks:
 
   - id: NC_LISTSTOCK_GLANCE
     name: 上市股票一览表
-    scheduled_start: "00:00"
-    expected_end: "00:05"
+    scheduled_start: "01:00"
+    expected_end: "02:00"
     log_index_pattern: "logstash-zxt-terminal-task-*"
     server: "172.30.176.135"
     log_dir: "/usr/local/zxt/task/logs"

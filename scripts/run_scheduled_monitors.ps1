@@ -4,10 +4,12 @@
 
 param(
     [string]$RepoRoot = (Split-Path -Parent $PSScriptRoot),
+    [string]$ScheduleConfig = "config/monitor_schedule.yaml",
     [switch]$NoNotify,
     [switch]$Json,
     [switch]$DryRun,
     [switch]$Force,
+    [switch]$NotifySuccess,
     [string[]]$Job
 )
 
@@ -43,11 +45,15 @@ if (-not $env:SSL_CERT_FILE) {
     }
 }
 
-$argsList = @("-m", "scripts.cron_task_monitor", "--run-scheduled")
+$argsList = @(
+    "-m", "scripts.cron_task_monitor", "--run-scheduled",
+    "--schedule-config", $ScheduleConfig
+)
 if ($Json) { $argsList += "--json" }
 if ($NoNotify) { $argsList += "--no-notify" }
 if ($DryRun) { $argsList += "--dry-run" }
 if ($Force) { $argsList += "--force-scheduled" }
+if ($NotifySuccess) { $argsList += "--notify-success" }
 foreach ($j in $Job) {
     if ($j) { $argsList += @("--job", $j) }
 }

@@ -52,6 +52,8 @@ Get-ChildItem $configRoot -File | Where-Object {
 $scriptNames = @(
     "run_scheduled_monitors.ps1",
     "run_scheduled_monitors.sh",
+    "run_monitor_production.ps1",
+    "run_monitor_production.sh",
     "run_health_monitor.ps1",
     "run_monitor_scheduled.ps1",
     "__init__.py"
