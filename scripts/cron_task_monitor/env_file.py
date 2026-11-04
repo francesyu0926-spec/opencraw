@@ -3,6 +3,34 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
+_MODULE_DIR = Path(__file__).resolve().parent
+
+
+def find_repo_root(hint: Path | None = None) -> Path:
+    """Return the opencraw repository root (directory that contains config/)."""
+    candidates: list[Path] = []
+    if hint is not None:
+        p = hint.resolve()
+        if p.is_file():
+            p = p.parent
+        candidates.append(p)
+        if p.name == "config":
+            candidates.append(p.parent)
+    candidates.append(_MODULE_DIR.parents[1])
+
+    seen: set[Path] = set()
+    for start in candidates:
+        for directory in (start, *start.parents):
+            if directory in seen:
+                continue
+            seen.add(directory)
+            if (directory / "config").is_dir() and (
+                directory / "scripts" / "cron_task_monitor"
+            ).is_dir():
+                return directory
+
+    return _MODULE_DIR.parents[1]
+
 
 def _strip_optional_quotes(value: str) -> str:
     if len(value) >= 2 and value[0] == value[-1] and value[0] in ('"', "'"):
@@ -10,34 +38,15 @@ def _strip_optional_quotes(value: str) -> str:
     return value
 
 
-def _env_has_value(key: str) -> bool:
-    return bool(os.environ.get(key, "").strip())
-
-
-def _repo_roots(anchor: Path | None) -> list[Path]:
-    """Candidate repo roots: from health config path, then cwd."""
-    roots: list[Path] = []
-    seen: set[Path] = set()
-
-    def add(path: Path) -> None:
-        resolved = path.resolve()
-        if resolved in seen:
-            return
-        seen.add(resolved)
-        roots.append(resolved)
-
-    if anchor is not None:
-        yaml_path = anchor if anchor.is_absolute() else Path.cwd() / anchor
-        yaml_path = yaml_path.resolve()
-        if yaml_path.parent.name == "config":
-            add(yaml_path.parent.parent)
-
-    add(Path.cwd())
-    return roots
+def _should_apply_env_value(key: str) -> bool:
+    """True when os.environ has no meaningful value for key."""
+    if key not in os.environ:
+        return True
+    return not os.environ[key].strip()
 
 
 def load_env_file(path: Path) -> int:
-    """Load KEY=VALUE lines from path into os.environ (missing keys only).
+    """Load KEY=VALUE lines from path into os.environ.
 
     Skips blank lines and # comments. Does not override non-empty env vars.
     Empty or whitespace-only values already in the environment are replaced.
@@ -47,8 +56,8 @@ def load_env_file(path: Path) -> int:
         return 0
 
     set_count = 0
-    raw = path.read_text(encoding="utf-8-sig")
-    for raw_line in raw.splitlines():
+    text = path.read_text(encoding="utf-8-sig")
+    for raw_line in text.splitlines():
         line = raw_line.strip()
         if not line or line.startswith("#"):
             continue
@@ -58,36 +67,37 @@ def load_env_file(path: Path) -> int:
         key = key.strip().lstrip("\ufeff")
         if not key:
             continue
-        if _env_has_value(key):
+        if not _should_apply_env_value(key):
             continue
         os.environ[key] = _strip_optional_quotes(value.strip())
         set_count += 1
     return set_count
 
 
-def load_health_monitor_env_files(*, config_path: Path | None = None) -> None:
-    """Load config/health.env then config/wecom.env from repo root or cwd."""
-    load_all_monitor_env_files(
-        anchor=config_path,
-        include_elk=False,
-    )
-
-
 def load_all_monitor_env_files(
     *,
     anchor: Path | None = None,
     include_elk: bool = True,
-) -> None:
-    """Load elk.env, health.env, wecom.env from repo root or cwd (in that order)."""
-    rel_paths: list[Path] = []
+) -> Path:
+    """Load elk.env, health.env, wecom.env from repository root (in that order)."""
+    root = find_repo_root(anchor)
+    names: list[str] = []
     if include_elk:
-        rel_paths.append(Path("config/elk.env"))
-    rel_paths.extend((Path("config/health.env"), Path("config/wecom.env")))
-    loaded: set[Path] = set()
-    for root in _repo_roots(anchor):
-        for rel in rel_paths:
-            path = (root / rel).resolve()
-            if path in loaded:
-                continue
-            loaded.add(path)
-            load_env_file(path)
+        names.append("elk.env")
+    names.extend(("health.env", "wecom.env"))
+    for name in names:
+        load_env_file(root / "config" / name)
+    return root
+
+
+def load_health_monitor_env_files(
+    *,
+    config_path: Path | None = None,
+    repo_root: Path | None = None,
+) -> Path:
+    """Load config/health.env then config/wecom.env from the repository root."""
+    if repo_root is not None:
+        for name in ("health.env", "wecom.env"):
+            load_env_file(repo_root / "config" / name)
+        return repo_root
+    return load_all_monitor_env_files(anchor=config_path, include_elk=False)
