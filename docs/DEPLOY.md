@@ -116,7 +116,8 @@ docker compose logs -f
 
 - 读取 `config/elk.env`、`health.env`、`wecom.env`、`writing.env`
 - 挂载 `./config/health.token.cache.json` 持久化登录 JWT（默认 12 小时）
-- 每 **300 秒（5 分钟）** 执行 `--run-scheduled --json`，与 `dispatcher_interval_minutes: 5` 一致（**仅失败告警**，不发成功汇总）
+- 每 **300 秒（5 分钟）** 执行 `--run-scheduled --json`，与 `dispatcher_interval_minutes: 5` 一致  
+- **失败**必告警；**至 2026-11-11** 在**整点**且 job 成功时另发成功企微（`notify_success_trial`，见生产 YAML）
 
 停止：`docker compose down`
 

@@ -1,9 +1,19 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import date, datetime
 from pathlib import Path
 
 import yaml
+
+
+@dataclass(frozen=True)
+class NotifySuccessTrial:
+    """Temporary policy: send WeCom when jobs succeed (e.g. on the hour for 7 days)."""
+
+    enabled: bool = False
+    on_hour_only: bool = True
+    until: str | None = None  # YYYY-MM-DD in schedule timezone (inclusive)
 
 
 @dataclass(frozen=True)
@@ -22,6 +32,37 @@ class MonitorScheduleConfig:
     timezone: str
     dispatcher_interval_minutes: int
     jobs: dict[str, ScheduledJob]
+    notify_success_trial: NotifySuccessTrial | None = None
+
+
+def _parse_notify_success_trial(data: dict) -> NotifySuccessTrial | None:
+    raw = data.get("notify_success_trial")
+    if not isinstance(raw, dict):
+        return None
+    until = raw.get("until")
+    return NotifySuccessTrial(
+        enabled=bool(raw.get("enabled", False)),
+        on_hour_only=bool(raw.get("on_hour_only", True)),
+        until=str(until).strip() if until else None,
+    )
+
+
+def notify_success_trial_active(
+    now: datetime,
+    trial: NotifySuccessTrial | None,
+) -> bool:
+    if trial is None or not trial.enabled:
+        return False
+    if trial.on_hour_only and now.minute != 0:
+        return False
+    if trial.until:
+        try:
+            end = date.fromisoformat(trial.until.strip())
+        except ValueError:
+            return False
+        if now.date() > end:
+            return False
+    return True
 
 
 def load_monitor_schedule(path: str | Path) -> MonitorScheduleConfig:
@@ -50,10 +91,12 @@ def load_monitor_schedule(path: str | Path) -> MonitorScheduleConfig:
             active_end=str(active_end).strip() if active_end else None,
         )
 
+    tz_name = str(data.get("timezone") or "Asia/Shanghai").strip()
     return MonitorScheduleConfig(
-        timezone=str(data.get("timezone") or "Asia/Shanghai").strip(),
+        timezone=tz_name,
         dispatcher_interval_minutes=max(
             1, int(data.get("dispatcher_interval_minutes") or 5)
         ),
         jobs=jobs,
+        notify_success_trial=_parse_notify_success_trial(data),
     )

@@ -4,6 +4,12 @@ timezone: Asia/Shanghai
 
 dispatcher_interval_minutes: 5
 
+# 临时（约 7 天）：整点（:00）且任务执行成功时，向对应企微机器人发送成功通知
+notify_success_trial:
+  enabled: true
+  on_hour_only: true
+  until: "2026-11-11"
+
 jobs:
   elk:
     enabled: true

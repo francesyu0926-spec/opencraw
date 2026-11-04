@@ -11,7 +11,69 @@ from zoneinfo import ZoneInfo
 
 from .env_file import load_all_monitor_env_files
 from .notifier import send_text_message
-from .schedule_config import ScheduledJob, load_monitor_schedule
+from .schedule_config import (
+    ScheduledJob,
+    load_monitor_schedule,
+    notify_success_trial_active,
+)
+
+_JOB_NOTIFY_CHANNEL: dict[str, str] = {
+    "elk": "elk",
+    "ws": "ws",
+    "health": "health",
+    "writing": "writing",
+}
+
+
+def _job_success_message(job_id: str, info: dict, now: datetime) -> str:
+    detail = info.get("detail") or {}
+    lines = [
+        f"【opencraw 监控成功】{job_id}",
+        f"时间: {now.strftime('%Y-%m-%d %H:%M:%S')}",
+        info.get("description") or "",
+    ]
+    if job_id == "health" and isinstance(detail, dict):
+        lines.append(
+            f"root={detail.get('root_status', '?')} checks={detail.get('check_count', '?')}"
+        )
+    elif job_id == "ws" and isinstance(detail, dict):
+        lines.append(
+            f"messages={detail.get('messages_received', '?')} "
+            f"quoteItems={'ok' if detail.get('quote_items_ok') else '?'}"
+        )
+    elif job_id == "elk" and isinstance(detail, dict):
+        lines.append(
+            f"hits={detail.get('hit_count', '?')} alerts={detail.get('alert_count', 0)}"
+        )
+    elif job_id == "writing" and isinstance(detail, dict):
+        results = detail.get("results") or []
+        passed = sum(1 for r in results if r.get("status") == "passed")
+        lines.append(f"写稿验证: 共 {len(results)} 项，通过 {passed} 项")
+    else:
+        lines.append("exit=0")
+    return "\n".join(line for line in lines if line).strip()
+
+
+def _notify_trial_hourly_successes(
+    results: dict[str, dict],
+    *,
+    now: datetime,
+    no_notify: bool,
+    dry_run: bool,
+) -> dict[str, dict]:
+    if no_notify or dry_run or not results:
+        return {}
+    out: dict[str, dict] = {}
+    for job_id, info in results.items():
+        if int(info.get("exit_code", 1)) != 0:
+            continue
+        channel = _JOB_NOTIFY_CHANNEL.get(job_id, "elk")
+        ok, msg = send_text_message(
+            _job_success_message(job_id, info, now),
+            channel=channel,
+        )
+        out[job_id] = {"ok": ok, "message": msg, "channel": channel}
+    return out
 
 
 def _parse_hhmm(value: str) -> time:
@@ -186,11 +248,24 @@ def run_scheduled_monitors(
 
     success_notify_ok: bool | None = None
     success_notify_msg = ""
+    trial_hourly_success = notify_success_trial_active(
+        now, cfg.notify_success_trial
+    )
+    job_success_notifies: dict[str, dict] = {}
+    if trial_hourly_success:
+        job_success_notifies = _notify_trial_hourly_successes(
+            results,
+            now=now,
+            no_notify=no_notify,
+            dry_run=dry_run,
+        )
+
     all_run_ok = bool(results) and all(
         int(info.get("exit_code", 1)) == 0 for info in results.values()
     )
     if (
         notify_success
+        and not trial_hourly_success
         and not no_notify
         and not dry_run
         and all_run_ok
@@ -242,6 +317,9 @@ def run_scheduled_monitors(
         if success_notify_ok is not None:
             payload["wecom_success_notify"] = success_notify_ok
             payload["wecom_success_message"] = success_notify_msg
+        if job_success_notifies:
+            payload["wecom_job_success_notifies"] = job_success_notifies
+            payload["notify_success_trial_hourly"] = True
         print(json.dumps(payload, ensure_ascii=False, indent=2))
     else:
         print(

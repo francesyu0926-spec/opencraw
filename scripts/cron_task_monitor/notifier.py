@@ -24,6 +24,7 @@ def format_alert_text(alerts: list[Alert], *, title: str | None = None) -> str:
 DEFAULT_WEBHOOK_ENV_ELK = "WECOM_WEBHOOK_URL_ELK"
 DEFAULT_WEBHOOK_ENV_WS = "WECOM_WEBHOOK_URL_WS"
 DEFAULT_WEBHOOK_ENV_HEALTH = "WECOM_WEBHOOK_URL_HEALTH"
+DEFAULT_WEBHOOK_ENV_WRITING = "WECOM_WEBHOOK_URL_WRITING"
 
 
 def resolve_webhook_url(webhook_env: str | None = None) -> str | None:
@@ -53,6 +54,20 @@ def resolve_webhook_url(webhook_env: str | None = None) -> str | None:
 
 def resolve_webhook_url_ws(webhook_env: str | None = None) -> str | None:
     keys = [webhook_env.strip()] if webhook_env else [DEFAULT_WEBHOOK_ENV_WS]
+    for key in keys:
+        url = os.environ.get(key, "").strip()
+        if url:
+            return url
+    return None
+
+
+def resolve_webhook_url_writing(webhook_env: str | None = None) -> str | None:
+    keys: list[str] = []
+    if webhook_env:
+        keys.append(webhook_env.strip())
+    for fallback in (DEFAULT_WEBHOOK_ENV_WRITING, "SFC_WECHAT_WEBHOOK_URL"):
+        if fallback not in keys:
+            keys.append(fallback)
     for key in keys:
         url = os.environ.get(key, "").strip()
         if url:
@@ -112,6 +127,9 @@ def send_text_message(
     elif channel == "health":
         url = resolve_webhook_url_health(webhook_env)
         missing = webhook_env or DEFAULT_WEBHOOK_ENV_HEALTH
+    elif channel == "writing":
+        url = resolve_webhook_url_writing(webhook_env)
+        missing = webhook_env or DEFAULT_WEBHOOK_ENV_WRITING
     else:
         url = resolve_webhook_url(webhook_env or DEFAULT_WEBHOOK_ENV_ELK)
         missing = webhook_env or DEFAULT_WEBHOOK_ENV_ELK

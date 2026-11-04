@@ -120,12 +120,17 @@ Windows 计划任务可直接跑 `scripts/run_health_monitor.ps1`（同样会加
 
 ## 告警与企业微信（三个机器人）
 
-**策略：仅失败告警。** ELK / WebSocket / health 探活**成功时不发企微**；只有产生 `alerts`（或 WS/health 探活失败）且已配置对应 webhook 时才会推送。统一调度**不要**加 `--notify-success` / `-NotifySuccess`（该参数仅用于偶发联调成功汇总）。
+**默认策略：仅失败告警。** 成功时不发企微；失败且已配置 webhook 时推送。
+
+**临时（至 `2026-11-11`）**：生产表 `config/monitor_schedule.production.yaml` 中 **`notify_success_trial`** 开启时，在**整点（分钟为 00）**且本轮 job **执行成功**，会向**该 job 对应机器人**发送成功文本（Docker / `run_monitor_production.*` 无需加参数）。到期后将 `enabled: false` 或删除该段即可恢复仅失败告警。
 
 | 监控 | 环境变量 | 配置 |
 |------|----------|------|
 | §2.1 ELK 定时任务 | **`WECOM_WEBHOOK_URL_ELK`** | `config/cron_tasks.yaml` → `wecom.webhook_env` |
 | §2.2 WebSocket | **`WECOM_WEBHOOK_URL_WS`** | `config/ws_monitor.yaml` → `wecom.webhook_env` |
 | 行情 API Health | **`WECOM_WEBHOOK_URL_HEALTH`** | `config/health_monitor.yaml` → `wecom.webhook_env` |
+| 自动化写稿 | **`WECOM_WEBHOOK_URL_WRITING`** / **`SFC_WECHAT_WEBHOOK_URL`** | `config/writing.env` |
 
-示例见 `config/wecom.env.example`。已配置对应变量时，**失败**自动推送；**`--no-notify`** 可关闭全部通知。
+示例见 `config/wecom.env.example`。联调可用 **`--notify-success`** / **`-NotifySuccess`**（每轮全部 job 成功时发 ELK 机器人汇总，与整点 trial 互斥）。
+
+**`--no-notify`** 可关闭全部通知（含整点成功）。
