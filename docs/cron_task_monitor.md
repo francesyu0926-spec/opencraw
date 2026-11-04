@@ -22,9 +22,9 @@ python -m scripts.cron_task_monitor --run-scheduled \
   --schedule-config config/monitor_schedule.production.yaml --json
 ```
 
-**Windows 任务计划**：每天重复，间隔 **15 分钟**；程序见上。
+**Windows 任务计划**：每天重复，间隔 **5 分钟**（触发调度器）；程序见上。
 
-**Linux cron**：`*/15 * * * * .../run_monitor_production.sh`（见 `config/schedule.example.cron`）。
+**Linux cron**：`*/5 * * * * .../run_monitor_production.sh`（见 `config/schedule.example.cron`）。
 
 ## 统一调度（开发/旧表）
 

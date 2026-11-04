@@ -114,9 +114,9 @@ docker compose logs -f
 
 `docker-compose.yml` 会：
 
-- 读取 `config/elk.env`、`health.env`、`wecom.env`
+- 读取 `config/elk.env`、`health.env`、`wecom.env`、`writing.env`
 - 挂载 `./config/health.token.cache.json` 持久化登录 JWT（默认 12 小时）
-- 每 **900 秒** 执行 `--run-scheduled --json`（**仅失败告警**，不发成功汇总）
+- 每 **300 秒（5 分钟）** 执行 `--run-scheduled --json`，与 `dispatcher_interval_minutes: 5` 一致（**仅失败告警**，不发成功汇总）
 
 停止：`docker compose down`
 
@@ -129,6 +129,7 @@ docker run -d --name opencraw-monitor --restart unless-stopped \
   --env-file config/elk.env \
   --env-file config/health.env \
   --env-file config/wecom.env \
+  --env-file config/writing.env \
   -v "$(pwd)/config/health.token.cache.json:/app/config/health.token.cache.json" \
   opencraw-monitor
 ```
@@ -173,8 +174,8 @@ powershell -ExecutionPolicy Bypass -File scripts\pack_deploy.ps1
 **密钥单独打包**（与程序包分开发，勿上传 Git）：
 
 ```powershell
-# 确保 config/elk.env、health.env、wecom.env 已填写真实值
+# 确保 config/elk.env、health.env、wecom.env、writing.env 已填写真实值
 powershell -ExecutionPolicy Bypass -File scripts\pack_secrets.ps1
 ```
 
-生成 `dist/opencraw-secrets-config-YYYYMMDD.zip`（内含上述三个文件 + `密钥解压说明.txt`）。
+生成 `dist/opencraw-secrets-config-YYYYMMDD.zip`（内含上述四个 env + `密钥解压说明.txt`）。

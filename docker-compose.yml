@@ -1,5 +1,5 @@
 # opencraw 统一监控
-# 使用前：在 config/ 下准备好 elk.env、health.env、wecom.env（勿提交 Git）
+# 使用前：在 config/ 下准备好 elk.env、health.env、wecom.env、writing.env（勿提交 Git）
 #
 #   docker compose up -d --build
 #   docker compose logs -f
@@ -17,6 +17,7 @@ services:
       - config/elk.env
       - config/health.env
       - config/wecom.env
+      - config/writing.env
     environment:
       TZ: Asia/Shanghai
       PYTHONPATH: /app
@@ -33,5 +34,5 @@ services:
           python -m scripts.cron_task_monitor --run-scheduled \
             --schedule-config config/monitor_schedule.production.yaml \
             --json || true
-          sleep 900
+          sleep 300
         done

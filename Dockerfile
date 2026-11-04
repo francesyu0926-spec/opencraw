@@ -26,7 +26,8 @@ COPY tests/ ./tests/
 # 密钥勿写入镜像：运行时挂载或 --env-file
 #   config/elk.env      → ELASTICSEARCH_PASSWORD 等
 #   config/health.env   → QUOTES_LOGIN_CODE / QUOTES_LOGIN_PASSWORD 等
-#   config/wecom.env    → WECOM_WEBHOOK_URL_ELK / _WS / _HEALTH
+#   config/wecom.env    → WECOM_WEBHOOK_URL_ELK / _WS / _HEALTH / _WRITING（可选）
+#   config/writing.env  → SFC_ADMIN_*、SFC_WECHAT_WEBHOOK_URL（写稿 job）
 
-# 与 config/monitor_schedule.production.yaml（dispatcher 15 分钟）对齐
-CMD ["sh", "-c", "while true; do python -m scripts.cron_task_monitor --run-scheduled --schedule-config config/monitor_schedule.production.yaml --json || true; sleep 900; done"]
+# 与 config/monitor_schedule.production.yaml（dispatcher_interval_minutes: 5）对齐
+CMD ["sh", "-c", "while true; do python -m scripts.cron_task_monitor --run-scheduled --schedule-config config/monitor_schedule.production.yaml --json || true; sleep 300; done"]

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # 生产监控调度（config/monitor_schedule.production.yaml）
-# cron 示例：*/15 * * * * /opt/opencraw/scripts/run_monitor_production.sh
+# cron 示例：*/5 * * * * /opt/opencraw/scripts/run_monitor_production.sh
 set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$REPO_ROOT"
