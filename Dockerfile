@@ -29,5 +29,5 @@ COPY tests/ ./tests/
 #   config/wecom.env    → WECOM_WEBHOOK_URL_ELK / _WS / _HEALTH / _WRITING（可选）
 #   config/writing.env  → SFC_ADMIN_*、SFC_WECHAT_WEBHOOK_URL（写稿 job）
 
-# 与 monitor_schedule.production.yaml 对齐（dispatcher 5 分钟；整点成功企微见 notify_success_trial）
-CMD ["sh", "-c", "while true; do python -m scripts.cron_task_monitor --run-scheduled --schedule-config config/monitor_schedule.production.yaml --json || true; sleep 300; done"]
+# 与 monitor_schedule.production.yaml 对齐（scripts/run_dispatcher_loop.sh 按 5 分钟 wall-clock 对齐）
+CMD ["sh", "scripts/run_dispatcher_loop.sh"]

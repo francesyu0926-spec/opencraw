@@ -22,18 +22,11 @@ services:
     environment:
       TZ: Asia/Shanghai
       PYTHONPATH: /app
+      DISPATCHER_INTERVAL_MINUTES: "5"
+      MONITOR_SCHEDULE_CONFIG: config/monitor_schedule.production.yaml
     volumes:
       # 持久化 health 登录 JWT 缓存（12 小时内复用）
       # 首次启动前可在宿主机执行: type nul > config\health.token.cache.json  (Windows)
       # 或: touch config/health.token.cache.json  (Linux/macOS)
       - ./config/health.token.cache.json:/app/config/health.token.cache.json
-    command:
-      - sh
-      - -c
-      - |
-        while true; do
-          python -m scripts.cron_task_monitor --run-scheduled \
-            --schedule-config config/monitor_schedule.production.yaml \
-            --json || true
-          sleep 300
-        done
+    command: ["sh", "scripts/run_dispatcher_loop.sh"]
