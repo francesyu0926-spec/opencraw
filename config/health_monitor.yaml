@@ -1,0 +1,21 @@
+# 行情 quotes API health（POST + Token 头）
+timezone: Asia/Shanghai
+
+url: https://terminal.sfccn.com/terminal/quotes/api/health
+method: POST
+# 登录取 Token。loginCode / password 只放环境变量，勿写入仓库。
+login_url: https://terminal.sfccn.com/terminal/zxt-web/login/pwd
+login_code_env: QUOTES_LOGIN_CODE
+login_password_env: QUOTES_LOGIN_PASSWORD
+# 最多每 12 小时登录一次；JWT 只写入本地缓存，勿提交
+login_interval_hours: 12
+token_cache_path: config/health.token.cache.json
+# 登录环境变量都未设置时，回退到此静态 Token（不写缓存）
+token_env: QUOTES_HEALTH_TOKEN
+request_timeout_seconds: 30
+expected_status: UP
+
+notify: on-call
+
+wecom:
+  webhook_env: WECOM_WEBHOOK_URL_HEALTH

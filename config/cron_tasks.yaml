@@ -1,0 +1,121 @@
+# §2.1 定时任务监控清单（与运维 PDF 对齐，2026 版任务时间）
+timezone: Asia/Shanghai
+
+# 任务计划：每天 00:00–05:00 每 15 分钟执行脚本（见 config/schedule.example.cron）
+monitor_mode: elk
+query_time_mode: rolling_in_batch
+schedule:
+  interval_minutes: 15
+  active_start: "00:00"
+  active_end: "05:00"
+batch_window:
+  start: "00:00"
+  end: "05:00"
+critical_window:
+  start: "08:30"
+  end: "09:15"
+
+late_start_threshold_minutes: 5
+overrun_after_end_threshold_minutes: 10
+
+monitor_log_prefix: "[TASK_MONITOR]"
+
+# §2.1 告警机器人（与 §2.2 的 WECOM_WEBHOOK_URL_WS 分开）
+wecom:
+  webhook_env: WECOM_WEBHOOK_URL_ELK
+
+elasticsearch:
+  url: http://dcelk.sfccn.com:9200
+  username: quotemonitor
+  message_field: msg
+  # query_time_mode=batch_window 时以下两项忽略；改为 elastic 模式时生效
+  timestamp_gte: now/d
+  timestamp_lte: now
+  query_size: 1000
+  indices:
+    - logstash-zxt-terminal-task-*
+    - logstash-sync-mongo-*
+
+tasks:
+  # --- logstash-sync-mongo-* / 124.220.0.191 ---
+  - id: CBD_PUB_BOARD_INFO
+    name: 主题成分股
+    scheduled_start: "01:00"
+    expected_end: "01:03"
+    log_index_pattern: "logstash-sync-mongo-*"
+    server: "124.220.0.191"
+    log_dir: "/data/zxt/sync-mongo/logs"
+    notify: 阳祥风
+
+  - id: CBD_BOARD_INFO
+    name: 主题
+    scheduled_start: "01:00"
+    expected_end: "01:05"
+    log_index_pattern: "logstash-sync-mongo-*"
+    server: "124.220.0.191"
+    log_dir: "/data/zxt/sync-mongo/logs"
+    notify: 阳祥风
+
+  - id: CBD_QUOT_STK_ISS
+    name: 新股
+    scheduled_start: "01:00"
+    expected_end: "01:05"
+    log_index_pattern: "logstash-sync-mongo-*"
+    server: "124.220.0.191"
+    log_dir: "/data/zxt/sync-mongo/logs"
+    notify: 阳祥风
+
+  - id: CBD_QUOT_CBND_STK
+    name: 同步可转债
+    scheduled_start: "02:00"
+    expected_end: "02:05"
+    log_index_pattern: "logstash-sync-mongo-*"
+    server: "124.220.0.191"
+    log_dir: "/data/zxt/sync-mongo/logs"
+    notify: 阳祥风
+
+  # --- logstash-zxt-terminal-task-* / 172.30.176.135 ---
+  - id: CBD_SECURITY_DICT
+    name: 字典表同步
+    scheduled_start: "04:00"
+    expected_end: "04:05"
+    log_index_pattern: "logstash-zxt-terminal-task-*"
+    server: "172.30.176.135"
+    log_dir: "/usr/local/zxt/task/logs"
+    notify: 阳祥风
+
+  - id: CBD_TRD_DT_RECNT
+    name: 交易日
+    scheduled_start: "01:00"
+    expected_end: "02:00"
+    log_index_pattern: "logstash-zxt-terminal-task-*"
+    server: "172.30.176.135"
+    log_dir: "/usr/local/zxt/task/logs"
+    notify: 阳祥风
+
+  - id: NC_LISTSTOCK_GLANCE
+    name: 上市股票一览表
+    scheduled_start: "00:00"
+    expected_end: "00:05"
+    log_index_pattern: "logstash-zxt-terminal-task-*"
+    server: "172.30.176.135"
+    log_dir: "/usr/local/zxt/task/logs"
+    notify: 阳祥风
+
+  - id: NC_TQ_SK_XDRY
+    name: 复权因子
+    scheduled_start: "02:40"
+    expected_end: "02:45"
+    log_index_pattern: "logstash-zxt-terminal-task-*"
+    server: "172.30.176.135"
+    log_dir: "/usr/local/zxt/task/logs"
+    notify: 阳祥风
+
+  - id: CBD_BD_FIN_DATA
+    name: 财务数据
+    scheduled_start: "04:00"
+    expected_end: "04:05"
+    log_index_pattern: "logstash-zxt-terminal-task-*"
+    server: "172.30.176.135"
+    log_dir: "/usr/local/zxt/task/logs"
+    notify: 阳祥风

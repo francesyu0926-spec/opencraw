@@ -1,0 +1,15 @@
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+venv/
+config/elk.env
+config/wecom.env
+config/health.env
+config/health.token.cache.json
+config/health.token.cache.json.tmp
+.env
+node_modules/
+dist/
+.git/
+.cursor/
