@@ -59,6 +59,10 @@ python -m scripts.cron_task_monitor --ws-daemon
 
 Token 来自登录接口，再放到 health 请求的 **Token** 头。登录最多每 **12 小时**一次，JWT 与取得时间写在 `config/health.token.cache.json`（已 gitignore）。未同时配置登录账号和密码时，才回退到静态 `QUOTES_HEALTH_TOKEN`（不写缓存）。
 
+在仓库根目录执行时，若存在 **`config/health.env`**（及可选的 **`config/wecom.env`**），`--health-monitor` 会自动加载其中的变量（不覆盖已在 shell 中 export 的同名变量）。可复制 `config/health.env.example` 为 `config/health.env` 并填入密钥（勿提交）。
+
+也可在 shell 中手动 export：
+
 ```powershell
 $env:QUOTES_LOGIN_CODE = "登录账号"
 $env:QUOTES_LOGIN_PASSWORD = "密码的 SHA256 hex"
@@ -68,7 +72,7 @@ $env:WECOM_WEBHOOK_URL_HEALTH = "https://qyapi.weixin.qq.com/cgi-bin/webhook/sen
 python -m scripts.cron_task_monitor --health-monitor --json
 ```
 
-Windows 计划任务可直接跑 `scripts/run_health_monitor.ps1`（自动加载 `config/health.env` / `config/wecom.env`）。
+Windows 计划任务可直接跑 `scripts/run_health_monitor.ps1`（同样会加载上述 env 文件后再调用 Python）。
 
 - 缓存年龄小于 `login_interval_hours`（默认 **12**）时直接复用，不调用登录接口
 - 缓存缺失、无法读取或超过 12 小时：`POST https://terminal.sfccn.com/terminal/zxt-web/login/pwd`（`application/x-www-form-urlencoded`：`loginCode`、`password`）一次，写入 JWT 后再探活

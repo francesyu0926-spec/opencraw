@@ -6,6 +6,7 @@ from datetime import datetime
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
+from .env_file import load_health_monitor_env_files
 from .health_config import load_health_config
 from .health_probe import run_health_probe
 from .models import Alert, AlertKind
@@ -21,6 +22,8 @@ def run_health_monitor(
     notify: bool,
     no_notify: bool,
 ) -> int:
+    load_health_monitor_env_files()
+
     if not config_path.is_file():
         print(f"health config not found: {config_path}", file=sys.stderr)
         return 2
