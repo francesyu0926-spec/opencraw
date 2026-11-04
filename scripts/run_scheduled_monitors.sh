@@ -9,6 +9,7 @@ set -a
 [[ -f config/elk.env ]] && . config/elk.env
 [[ -f config/health.env ]] && . config/health.env
 [[ -f config/wecom.env ]] && . config/wecom.env
+[[ -f config/writing.env ]] && . config/writing.env
 set +a
 
 exec python3 -m scripts.cron_task_monitor --run-scheduled --json "$@"

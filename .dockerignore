@@ -12,6 +12,7 @@ dist
 config/elk.env
 config/health.env
 config/wecom.env
+config/writing.env
 config/health_linux.env
 config/health.token.cache.json
 config/health.token.cache.json.tmp

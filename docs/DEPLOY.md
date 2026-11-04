@@ -24,7 +24,7 @@
 | `scripts/run_monitor_scheduled.ps1` | 兼容旧 ELK 计划任务（可选） |
 | `docs/cron_task_monitor.md` | 功能与告警说明 |
 
-**压缩包内不含**（需在目标机自行创建）：`config/elk.env`、`config/health.env`、`config/wecom.env`、`config/health.token.cache.json`。
+**压缩包内不含**（需在目标机自行创建）：`config/elk.env`、`config/health.env`、`config/wecom.env`、`config/writing.env`、`config/health.token.cache.json`。
 
 ## 2. 环境要求
 
@@ -49,7 +49,8 @@ cp wecom.env.example wecom.env
 |------|----------|
 | `elk.env` | `ELASTICSEARCH_PASSWORD`（及可选 `ELASTICSEARCH_URL` / `USER`） |
 | `health.env` | `QUOTES_LOGIN_CODE`、`QUOTES_LOGIN_PASSWORD`（SHA256 hex）；或静态 `QUOTES_HEALTH_TOKEN` |
-| `wecom.env` | `WECOM_WEBHOOK_URL_ELK`、`WECOM_WEBHOOK_URL_WS`、`WECOM_WEBHOOK_URL_HEALTH` |
+| `wecom.env` | `WECOM_WEBHOOK_URL_ELK`、`WECOM_WEBHOOK_URL_WS`、`WECOM_WEBHOOK_URL_HEALTH`、`WECOM_WEBHOOK_URL_WRITING`（可选） |
+| `writing.env` | `SFC_ADMIN_CODE`、`SFC_ADMIN_PASSWORD`、`SFC_WECHAT_WEBHOOK_URL`（写稿失败告警） |
 
 ## 4. 方式 A：本机 Python 部署
 

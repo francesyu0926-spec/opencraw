@@ -1,4 +1,4 @@
-﻿# 打部署压缩包（不含密钥、缓存、Git、测试）
+﻿# 打部署压缩包（不含密钥、缓存、Git；含 tests 与 automated_writing）
 # 用法：powershell -ExecutionPolicy Bypass -File scripts\pack_deploy.ps1
 
 param(
@@ -66,6 +66,32 @@ $pkgDest = Join-Path $staging "scripts\cron_task_monitor"
 New-Item -ItemType Directory -Path $pkgDest -Force | Out-Null
 Get-ChildItem (Join-Path $RepoRoot "scripts\cron_task_monitor") -Filter "*.py" | ForEach-Object {
     Copy-Item $_.FullName (Join-Path $pkgDest $_.Name)
+}
+
+# automated_writing（writing job 依赖）
+$awSrc = Join-Path $RepoRoot "scripts\automated_writing"
+$awDest = Join-Path $staging "scripts\automated_writing"
+if (Test-Path $awSrc) {
+    New-Item -ItemType Directory -Path $awDest -Force | Out-Null
+    Copy-IfExists (Join-Path $awSrc "verify.py") (Join-Path $awDest "verify.py")
+    Copy-IfExists (Join-Path $awSrc "README.md") (Join-Path $awDest "README.md")
+    $verifySrc = Join-Path $awSrc "verify"
+    $verifyDest = Join-Path $awDest "verify"
+    if (Test-Path $verifySrc) {
+        Copy-Item $verifySrc $verifyDest -Recurse -Force
+        Get-ChildItem $verifyDest -Recurse -Directory -Filter "__pycache__" -ErrorAction SilentlyContinue |
+            ForEach-Object { Remove-Item $_.FullName -Recurse -Force }
+    }
+}
+
+# tests（部署机可跑 pytest 做冒烟）
+$testsSrc = Join-Path $RepoRoot "tests"
+$testsDest = Join-Path $staging "tests"
+if (Test-Path $testsSrc) {
+    New-Item -ItemType Directory -Path $testsDest -Force | Out-Null
+    Get-ChildItem $testsSrc -Filter "*.py" | ForEach-Object {
+        Copy-Item $_.FullName (Join-Path $testsDest $_.Name)
+    }
 }
 
 # 根目录放置操作说明快捷入口

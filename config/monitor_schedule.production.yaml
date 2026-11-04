@@ -28,3 +28,11 @@ jobs:
     active_start: "09:00"
     active_end: "23:39"
     config: config/health_monitor.yaml
+
+  writing:
+    enabled: true
+    description: 自动化写稿任务验证（zxtop 盘前/早报等 7 项，失败企微告警）
+    interval_minutes: 5
+    active_start: "07:00"
+    active_end: "20:30"
+    config: config/writing_monitor.yaml

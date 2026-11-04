@@ -34,6 +34,7 @@ function Import-DotEnvFile {
 Import-DotEnvFile (Join-Path $RepoRoot "config\elk.env")
 Import-DotEnvFile (Join-Path $RepoRoot "config\health.env")
 Import-DotEnvFile (Join-Path $RepoRoot "config\wecom.env")
+Import-DotEnvFile (Join-Path $RepoRoot "config\writing.env")
 
 if (-not $env:SSL_CERT_FILE) {
     $defaultSsl = "C:\Program Files\Common Files\SSL\cert.pem"

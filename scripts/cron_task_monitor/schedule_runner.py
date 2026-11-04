@@ -67,6 +67,10 @@ def _run_single_job(
         from .ws_main import run_ws_monitor
 
         runner = run_ws_monitor
+    elif job.id == "writing":
+        from .writing_main import run_writing_monitor
+
+        runner = run_writing_monitor
     elif job.id == "elk":
         from . import __main__ as monitor_main
 

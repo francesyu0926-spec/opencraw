@@ -65,6 +65,16 @@ def _parse_args() -> argparse.Namespace:
         help="Health API 监控配置",
     )
     p.add_argument(
+        "--writing-monitor",
+        action="store_true",
+        help="自动化写稿任务验证（见 config/writing_monitor.yaml）",
+    )
+    p.add_argument(
+        "--writing-config",
+        default="config/writing_monitor.yaml",
+        help="写稿监测配置",
+    )
+    p.add_argument(
         "--run-scheduled",
         action="store_true",
         help="按 config/monitor_schedule.yaml 执行到期监控（HTTP / WS / ELK）",
@@ -78,7 +88,7 @@ def _parse_args() -> argparse.Namespace:
         "--job",
         action="append",
         dest="job_ids",
-        help="仅运行指定 job（health / ws / elk），可重复",
+        help="仅运行指定 job（health / ws / elk / writing），可重复",
     )
     p.add_argument(
         "--force-scheduled",
@@ -125,6 +135,18 @@ def run_monitor(args: argparse.Namespace) -> int:
 
         return run_health_monitor(
             Path(args.health_config),
+            at=args.at,
+            as_json=args.json,
+            dry_run=args.dry_run,
+            notify=args.notify,
+            no_notify=args.no_notify,
+        )
+
+    if args.writing_monitor:
+        from .writing_main import run_writing_monitor
+
+        return run_writing_monitor(
+            Path(args.writing_config),
             at=args.at,
             as_json=args.json,
             dry_run=args.dry_run,

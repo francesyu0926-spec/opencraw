@@ -2,6 +2,7 @@
 # - 00:00–05:00  ELK 数据同步，每 15 分钟
 # - 09:00–15:30  WebSocket，每 15 分钟
 # - 09:00–23:39  HTTP health，每 15 分钟
+# - 07:00–20:30  自动化写稿验证，每 5 分钟（到期任务才执行 verify run --due）
 #
 # 任务计划：每天重复，间隔 15 分钟，持续 1 天。
 # 程序：powershell.exe -ExecutionPolicy Bypass -File scripts\run_monitor_production.ps1

@@ -9,8 +9,9 @@
 | `elk` | 每 **15** 分钟 | **00:00–05:00**（数据同步定时任务） |
 | `ws` | 每 **10** 分钟 | **09:00–15:30**（模拟客户端探活） |
 | `health` | 每 **15** 分钟 | **09:00–23:39** |
+| `writing` | 每 **5** 分钟 | **07:00–20:30**（zxtop 写稿 7 项，失败企微） |
 
-任务计划 / cron：**每 5 分钟**触发调度器（WS 10 分钟 / health·elk 15 分钟到期才执行）。
+任务计划 / cron：**每 5 分钟**触发调度器（WS 10 分钟 / health·elk 15 分钟 / writing 5 分钟到期才执行）。
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File scripts\run_monitor_production.ps1 -Json
@@ -29,7 +30,16 @@ python -m scripts.cron_task_monitor --run-scheduled \
 
 `config/monitor_schedule.yaml`：health 5 分钟 / ws 10 分钟 / elk 0–5 点 15 分钟；调度器 **每 5 分钟**。入口 `scripts/run_scheduled_monitors.ps1`。
 
-密钥文件（均 gitignore）：`config/elk.env`、`config/health.env`、`config/wecom.env`（示例见 `*.example`）。
+密钥文件（均 gitignore）：`config/elk.env`、`config/health.env`、`config/wecom.env`、`config/writing.env`（示例见 `*.example`）。
+
+### 自动化写稿（writing）
+
+代码来自 `scripts/automated_writing/`（`verify run --due`）。配置 **`config/writing.env`**：`SFC_ADMIN_CODE` / `SFC_ADMIN_PASSWORD`（与 automated_writing 一致），企微用 **`SFC_WECHAT_WEBHOOK_URL`** 或 **`wecom.env`** 中的 **`WECOM_WEBHOOK_URL_WRITING`**。
+
+```powershell
+python -m scripts.cron_task_monitor --writing-monitor --json
+python -m scripts.cron_task_monitor --run-scheduled --schedule-config config/monitor_schedule.production.yaml --job writing --force --json
+```
 
 ## §2.1 ELK 数据同步（单独运行）
 

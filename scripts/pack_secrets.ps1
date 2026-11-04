@@ -6,7 +6,7 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
-$names = @("elk.env", "health.env", "wecom.env")
+$names = @("elk.env", "health.env", "wecom.env", "writing.env")
 $configDir = Join-Path $RepoRoot "config"
 $missing = @()
 
