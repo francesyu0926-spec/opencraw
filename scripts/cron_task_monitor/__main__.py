@@ -64,6 +64,27 @@ def _parse_args() -> argparse.Namespace:
         default="config/health_monitor.yaml",
         help="Health API 监控配置",
     )
+    p.add_argument(
+        "--run-scheduled",
+        action="store_true",
+        help="按 config/monitor_schedule.yaml 执行到期监控（HTTP / WS / ELK）",
+    )
+    p.add_argument(
+        "--schedule-config",
+        default="config/monitor_schedule.yaml",
+        help="统一调度配置",
+    )
+    p.add_argument(
+        "--job",
+        action="append",
+        dest="job_ids",
+        help="仅运行指定 job（health / ws / elk），可重复",
+    )
+    p.add_argument(
+        "--force-scheduled",
+        action="store_true",
+        help="忽略时刻表，运行所有已启用的 job（配合 --job 可只跑部分）",
+    )
     return p.parse_args()
 
 
@@ -78,6 +99,21 @@ def _resolve_now(cfg_tz: str, at: str | None) -> datetime:
 
 
 def run_monitor(args: argparse.Namespace) -> int:
+    if args.run_scheduled:
+        from .schedule_runner import run_scheduled_monitors
+
+        job_filter = set(args.job_ids or []) or None
+        return run_scheduled_monitors(
+            Path(args.schedule_config),
+            at=args.at,
+            as_json=args.json,
+            dry_run=args.dry_run,
+            notify=args.notify,
+            no_notify=args.no_notify,
+            job_filter=job_filter,
+            force=args.force_scheduled,
+        )
+
     if args.health_monitor:
         from .health_main import run_health_monitor
 

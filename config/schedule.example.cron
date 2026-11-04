@@ -1,14 +1,11 @@
-# §2.1 定时任务监控 — Linux cron
-# 每天 00:00–05:00，每 15 分钟执行（0:00 … 4:45，以及 5:00）
+# 统一监控调度（推荐）：每 5 分钟执行 HTTP health / WS / ELK（见 config/monitor_schedule.yaml）
 SHELL=/bin/bash
 PATH=/usr/local/bin:/usr/bin:/bin
 
-# 需事先 export：ELASTICSEARCH_PASSWORD、WECOM_WEBHOOK_URL
-*/15 0-4 * * * cd /opt/opencraw && set -a && [ -f config/elk.env ] && . config/elk.env && [ -f config/wecom.env ] && . config/wecom.env && set +a && PYTHONPATH=. /usr/bin/python3 -m scripts.cron_task_monitor -c config/cron_tasks.yaml >> /var/log/cron_task_monitor.log 2>&1
-0 5 * * * cd /opt/opencraw && set -a && [ -f config/elk.env ] && . config/elk.env && [ -f config/wecom.env ] && . config/wecom.env && set +a && PYTHONPATH=. /usr/bin/python3 -m scripts.cron_task_monitor -c config/cron_tasks.yaml >> /var/log/cron_task_monitor.log 2>&1
+*/5 * * * * /opt/opencraw/scripts/run_scheduled_monitors.sh >> /var/log/opencraw_monitors.log 2>&1
 
-# §2.2 WebSocket：每 10 分钟（8:30-9:00 脚本内自动跳过）
-*/10 * * * * cd /opt/opencraw && set -a && [ -f config/wecom.env ] && . config/wecom.env && set +a && PYTHONPATH=. /usr/bin/python3 -m scripts.cron_task_monitor --ws-monitor --json >> /var/log/ws_monitor.log 2>&1
-
-# 行情 API health：每 5 分钟（优先 QUOTES_LOGIN_CODE + QUOTES_LOGIN_PASSWORD，否则 QUOTES_HEALTH_TOKEN；另需 WECOM_WEBHOOK_URL_HEALTH）
-*/5 * * * * cd /opt/opencraw && set -a && [ -f config/health.env ] && . config/health.env && [ -f config/wecom.env ] && . config/wecom.env && set +a && PYTHONPATH=. /usr/bin/python3 -m scripts.cron_task_monitor --health-monitor --json >> /var/log/health_monitor.log 2>&1
+# --- 以下为拆分 cron（可选，与统一调度二选一）---
+# */15 0-4 * * * ... python3 -m scripts.cron_task_monitor -c config/cron_tasks.yaml
+# 0 5 * * * ... python3 -m scripts.cron_task_monitor -c config/cron_tasks.yaml
+# */10 * * * * ... python3 -m scripts.cron_task_monitor --ws-monitor --json
+# */5 * * * * ... python3 -m scripts.cron_task_monitor --health-monitor --json

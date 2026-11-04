@@ -1,6 +1,35 @@
 # 定时任务监控（§2.1）
 
-## 执行计划（每天 00:00–05:00，每 15 分钟）
+## 统一调度（推荐）
+
+一次计划任务跑齐 **HTTP health**、**WebSocket**、**ELK 数据同步** 监控，时刻表见 `config/monitor_schedule.yaml`：
+
+| Job | 频率 | 运行窗口 |
+|-----|------|----------|
+| `health` | 每 **5** 分钟 | 全天 |
+| `ws` | 每 **10** 分钟 | 全天（08:30–09:00 探活内跳过） |
+| `elk` | 每 **15** 分钟 | **00:00–05:00** |
+
+调度器建议 **每 5 分钟** 触发一次（与各 interval 的最小公倍数对齐）。
+
+```powershell
+# 手动（加载 config/elk.env、health.env、wecom.env）
+powershell -ExecutionPolicy Bypass -File scripts\run_scheduled_monitors.ps1 -Json
+
+# 或 Python
+python -m scripts.cron_task_monitor --run-scheduled --json
+python -m scripts.cron_task_monitor --run-scheduled --force-scheduled --job health --json  # 忽略时刻表只跑 health
+```
+
+**Windows 任务计划**：触发器 **每天**，重复间隔 **5 分钟**，持续 **1 天**；操作：
+
+`powershell.exe -ExecutionPolicy Bypass -File D:\Document\CODE\opencraw\scripts\run_scheduled_monitors.ps1 -Json`
+
+**Linux cron**：见 `config/schedule.example.cron`（`scripts/run_scheduled_monitors.sh`）。
+
+密钥文件（均 gitignore）：`config/elk.env`、`config/health.env`、`config/wecom.env`（示例见 `*.example`）。
+
+## §2.1 ELK 数据同步（单独运行）
 
 | 项目 | 配置 |
 |------|------|
@@ -10,16 +39,7 @@
 
 触发时刻示例：`00:00, 00:15, …, 04:45, 05:00`。
 
-### Linux cron
-
-见 `config/schedule.example.cron`。
-
-### Windows 任务计划程序
-
-1. 创建任务 → 触发器：**每天 00:00**
-2. 勾选 **重复任务**，间隔 **15 分钟**，持续时间 **5 小时**
-3. 操作：`powershell.exe -ExecutionPolicy Bypass -File D:\Document\CODE\opencraw\scripts\run_monitor_scheduled.ps1`
-4. 环境变量：`ELASTICSEARCH_PASSWORD`、`WECOM_WEBHOOK_URL`（系统或任务里配置）
+旧入口 `scripts/run_monitor_scheduled.ps1` 仍可用（仅转发 ELK job 到统一调度）。
 
 ## 手动运行
 

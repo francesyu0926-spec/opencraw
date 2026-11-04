@@ -67,9 +67,24 @@ def load_env_file(path: Path) -> int:
 
 def load_health_monitor_env_files(*, config_path: Path | None = None) -> None:
     """Load config/health.env then config/wecom.env from repo root or cwd."""
-    rel_paths = (Path("config/health.env"), Path("config/wecom.env"))
+    load_all_monitor_env_files(
+        anchor=config_path,
+        include_elk=False,
+    )
+
+
+def load_all_monitor_env_files(
+    *,
+    anchor: Path | None = None,
+    include_elk: bool = True,
+) -> None:
+    """Load elk.env, health.env, wecom.env from repo root or cwd (in that order)."""
+    rel_paths: list[Path] = []
+    if include_elk:
+        rel_paths.append(Path("config/elk.env"))
+    rel_paths.extend((Path("config/health.env"), Path("config/wecom.env")))
     loaded: set[Path] = set()
-    for root in _repo_roots(config_path):
+    for root in _repo_roots(anchor):
         for rel in rel_paths:
             path = (root / rel).resolve()
             if path in loaded:
