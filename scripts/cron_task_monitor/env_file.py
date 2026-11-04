@@ -10,34 +10,69 @@ def _strip_optional_quotes(value: str) -> str:
     return value
 
 
+def _env_has_value(key: str) -> bool:
+    return bool(os.environ.get(key, "").strip())
+
+
+def _repo_roots(anchor: Path | None) -> list[Path]:
+    """Candidate repo roots: from health config path, then cwd."""
+    roots: list[Path] = []
+    seen: set[Path] = set()
+
+    def add(path: Path) -> None:
+        resolved = path.resolve()
+        if resolved in seen:
+            return
+        seen.add(resolved)
+        roots.append(resolved)
+
+    if anchor is not None:
+        yaml_path = anchor if anchor.is_absolute() else Path.cwd() / anchor
+        yaml_path = yaml_path.resolve()
+        if yaml_path.parent.name == "config":
+            add(yaml_path.parent.parent)
+
+    add(Path.cwd())
+    return roots
+
+
 def load_env_file(path: Path) -> int:
     """Load KEY=VALUE lines from path into os.environ (missing keys only).
 
-    Skips blank lines and # comments. Does not log values.
+    Skips blank lines and # comments. Does not override non-empty env vars.
+    Empty or whitespace-only values already in the environment are replaced.
     Returns the number of variables set.
     """
     if not path.is_file():
         return 0
 
     set_count = 0
-    for raw_line in path.read_text(encoding="utf-8").splitlines():
+    raw = path.read_text(encoding="utf-8-sig")
+    for raw_line in raw.splitlines():
         line = raw_line.strip()
         if not line or line.startswith("#"):
             continue
         if "=" not in line:
             continue
         key, _, value = line.partition("=")
-        key = key.strip()
+        key = key.strip().lstrip("\ufeff")
         if not key:
             continue
-        if key in os.environ:
+        if _env_has_value(key):
             continue
         os.environ[key] = _strip_optional_quotes(value.strip())
         set_count += 1
     return set_count
 
 
-def load_health_monitor_env_files() -> None:
-    """Load config/health.env then config/wecom.env from the current working directory."""
-    for rel in (Path("config/health.env"), Path("config/wecom.env")):
-        load_env_file(rel)
+def load_health_monitor_env_files(*, config_path: Path | None = None) -> None:
+    """Load config/health.env then config/wecom.env from repo root or cwd."""
+    rel_paths = (Path("config/health.env"), Path("config/wecom.env"))
+    loaded: set[Path] = set()
+    for root in _repo_roots(config_path):
+        for rel in rel_paths:
+            path = (root / rel).resolve()
+            if path in loaded:
+                continue
+            loaded.add(path)
+            load_env_file(path)

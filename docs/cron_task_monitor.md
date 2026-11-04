@@ -59,7 +59,7 @@ python -m scripts.cron_task_monitor --ws-daemon
 
 Token 来自登录接口，再放到 health 请求的 **Token** 头。登录最多每 **12 小时**一次，JWT 与取得时间写在 `config/health.token.cache.json`（已 gitignore）。未同时配置登录账号和密码时，才回退到静态 `QUOTES_HEALTH_TOKEN`（不写缓存）。
 
-在仓库根目录执行时，若存在 **`config/health.env`**（及可选的 **`config/wecom.env`**），`--health-monitor` 会自动加载其中的变量（不覆盖已在 shell 中 export 的同名变量）。可复制 `config/health.env.example` 为 `config/health.env` 并填入密钥（勿提交）。
+在仓库根目录执行时，若存在 **`config/health.env`**（及可选的 **`config/wecom.env`**），`--health-monitor` 会自动加载其中的变量（不覆盖 shell 里**已有非空值**的同名变量；UTF-8 BOM 与仅含空白的占位变量会被正确处理）。也可根据 `--health-config` 路径定位仓库根目录加载上述文件。可复制 `config/health.env.example` 为 `config/health.env` 并填入密钥（勿提交）。
 
 也可在 shell 中手动 export：
 

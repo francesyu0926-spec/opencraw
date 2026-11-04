@@ -22,7 +22,7 @@ def run_health_monitor(
     notify: bool,
     no_notify: bool,
 ) -> int:
-    load_health_monitor_env_files()
+    load_health_monitor_env_files(config_path=config_path)
 
     if not config_path.is_file():
         print(f"health config not found: {config_path}", file=sys.stderr)
