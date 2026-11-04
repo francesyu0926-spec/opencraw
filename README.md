@@ -4,7 +4,7 @@
 
 ## 定时任务监控（§2.1）
 
-见 [docs/cron_task_monitor.md](docs/cron_task_monitor.md)。
+见 [docs/cron_task_monitor.md](docs/cron_task_monitor.md)。**部署与打压缩包**见 [docs/DEPLOY.md](docs/DEPLOY.md)。
 
 快速开始：
 

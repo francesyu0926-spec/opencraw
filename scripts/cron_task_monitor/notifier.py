@@ -99,6 +99,56 @@ def _build_payload(
     }
 
 
+def send_text_message(
+    content: str,
+    *,
+    webhook_env: str | None = None,
+    channel: str = "elk",
+) -> tuple[bool, str]:
+    """发送纯文本（用于成功汇总等，不经过 Alert 列表）。"""
+    if channel == "ws":
+        url = resolve_webhook_url_ws(webhook_env)
+        missing = webhook_env or DEFAULT_WEBHOOK_ENV_WS
+    elif channel == "health":
+        url = resolve_webhook_url_health(webhook_env)
+        missing = webhook_env or DEFAULT_WEBHOOK_ENV_HEALTH
+    else:
+        url = resolve_webhook_url(webhook_env or DEFAULT_WEBHOOK_ENV_ELK)
+        missing = webhook_env or DEFAULT_WEBHOOK_ENV_ELK
+
+    if not url:
+        return False, f"未配置环境变量 {missing}"
+    text = content.strip()
+    if not text:
+        return False, "空消息"
+
+    payload = (
+        {"msgtype": "text", "text": {"content": text}}
+        if _is_wecom_webhook(url)
+        else {"text": text}
+    )
+    req = urllib.request.Request(
+        url,
+        data=json.dumps(payload, ensure_ascii=False).encode("utf-8"),
+        headers={"Content-Type": "application/json; charset=utf-8"},
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            body = resp.read().decode("utf-8")
+        if _is_wecom_webhook(url):
+            data = json.loads(body)
+            if data.get("errcode") == 0:
+                return True, "企业微信发送成功"
+            return False, f"企业微信返回 errcode={data.get('errcode')} errmsg={data.get('errmsg')}"
+        return True, "Webhook 发送成功"
+    except urllib.error.HTTPError as e:
+        detail = e.read().decode("utf-8", errors="replace")[:200]
+        return False, f"HTTP {e.code}: {detail}"
+    except (urllib.error.URLError, TimeoutError, json.JSONDecodeError) as e:
+        return False, str(e)
+
+
 def send_webhook(
     alerts: list[Alert],
     *,

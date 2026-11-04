@@ -85,6 +85,11 @@ def _parse_args() -> argparse.Namespace:
         action="store_true",
         help="忽略时刻表，运行所有已启用的 job（配合 --job 可只跑部分）",
     )
+    p.add_argument(
+        "--notify-success",
+        action="store_true",
+        help="统一调度全部成功时向 ELK 企微机器人发送汇总（--no-notify 可关闭）",
+    )
     return p.parse_args()
 
 
@@ -112,6 +117,7 @@ def run_monitor(args: argparse.Namespace) -> int:
             no_notify=args.no_notify,
             job_filter=job_filter,
             force=args.force_scheduled,
+            notify_success=args.notify_success,
         )
 
     if args.health_monitor:

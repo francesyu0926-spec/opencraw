@@ -1,0 +1,35 @@
+# opencraw 统一监控
+# 使用前：在 config/ 下准备好 elk.env、health.env、wecom.env（勿提交 Git）
+#
+#   docker compose up -d --build
+#   docker compose logs -f
+#   docker compose down
+
+services:
+  opencraw-monitor:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: opencraw-monitor:latest
+    container_name: opencraw-monitor
+    restart: unless-stopped
+    env_file:
+      - config/elk.env
+      - config/health.env
+      - config/wecom.env
+    environment:
+      TZ: Asia/Shanghai
+      PYTHONPATH: /app
+    volumes:
+      # 持久化 health 登录 JWT 缓存（12 小时内复用）
+      # 首次启动前可在宿主机执行: type nul > config\health.token.cache.json  (Windows)
+      # 或: touch config/health.token.cache.json  (Linux/macOS)
+      - ./config/health.token.cache.json:/app/config/health.token.cache.json
+    command:
+      - sh
+      - -c
+      - |
+        while true; do
+          python -m scripts.cron_task_monitor --run-scheduled --json --notify-success || true
+          sleep 300
+        done

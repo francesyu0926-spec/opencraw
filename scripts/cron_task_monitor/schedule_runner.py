@@ -10,6 +10,7 @@ from pathlib import Path
 from zoneinfo import ZoneInfo
 
 from .env_file import load_all_monitor_env_files
+from .notifier import send_text_message
 from .schedule_config import ScheduledJob, load_monitor_schedule
 
 
@@ -132,6 +133,7 @@ def run_scheduled_monitors(
     no_notify: bool,
     job_filter: set[str] | None = None,
     force: bool = False,
+    notify_success: bool = False,
 ) -> int:
     if not schedule_path.is_file():
         print(f"schedule config not found: {schedule_path}", file=sys.stderr)
@@ -178,6 +180,49 @@ def run_scheduled_monitors(
         if code != 0:
             exit_code = max(exit_code, code if code > 0 else 1)
 
+    success_notify_ok: bool | None = None
+    success_notify_msg = ""
+    all_run_ok = bool(results) and all(
+        int(info.get("exit_code", 1)) == 0 for info in results.values()
+    )
+    if (
+        notify_success
+        and not no_notify
+        and not dry_run
+        and all_run_ok
+        and exit_code == 0
+    ):
+        lines = [
+            "【opencraw 统一监控】本轮探活全部成功",
+            f"时间: {now.isoformat()}",
+            f"已执行: {', '.join(results.keys()) or '无'}",
+        ]
+        for jid, info in results.items():
+            detail = info.get("detail") or {}
+            if jid == "health" and isinstance(detail, dict):
+                lines.append(
+                    f"- health: root={detail.get('root_status', '?')} "
+                    f"checks={detail.get('check_count', '?')}"
+                )
+            elif jid == "ws" and isinstance(detail, dict):
+                lines.append(
+                    f"- ws: messages={detail.get('messages_received', '?')} "
+                    f"quoteItems={'ok' if detail.get('quote_items_ok') else '?'}"
+                )
+            elif jid == "elk" and isinstance(detail, dict):
+                lines.append(
+                    f"- elk: hits={detail.get('hit_count', '?')} "
+                    f"alerts={detail.get('alert_count', 0)}"
+                )
+            else:
+                lines.append(f"- {jid}: exit=0")
+        if skipped:
+            lines.append(f"跳过: {', '.join(s['job'] for s in skipped)}")
+        success_notify_ok, success_notify_msg = send_text_message(
+            "\n".join(lines),
+            channel="elk",
+        )
+
     if as_json:
         payload = {
             "checked_at": now.isoformat(),
@@ -190,6 +235,9 @@ def run_scheduled_monitors(
             "jobs_skipped": skipped,
             "results": results,
         }
+        if success_notify_ok is not None:
+            payload["wecom_success_notify"] = success_notify_ok
+            payload["wecom_success_message"] = success_notify_msg
         print(json.dumps(payload, ensure_ascii=False, indent=2))
     else:
         print(
