@@ -111,9 +111,10 @@ def load_all_monitor_env_files(
     names: list[str] = []
     if include_elk:
         names.append("elk.env")
-    names.extend(("health.env", "wecom.env"))
+    names.extend(("health.env", "wecom.env", "writing.env"))
     for name in names:
         load_env_file(root / "config" / name)
+    apply_writing_wecom_webhook()
     return root
 
 

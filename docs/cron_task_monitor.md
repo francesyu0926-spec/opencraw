@@ -122,7 +122,7 @@ Windows 计划任务可直接跑 `scripts/run_health_monitor.ps1`（同样会加
 
 **默认策略：仅失败告警。** 成功时不发企微；失败且已配置 webhook 时推送。
 
-**临时（至 `2026-11-11`）**：生产表 `config/monitor_schedule.production.yaml` 中 **`notify_success_trial`** 开启时，在**整点（分钟为 00）**且本轮 job **执行成功**，会向**该 job 对应机器人**发送成功文本（Docker / `run_monitor_production.*` 无需加参数）。到期后将 `enabled: false` 或删除该段即可恢复仅失败告警。
+**临时（至 `2026-11-11`）**：生产表 **`notify_success_trial`** 开启时，在**整点（:00）**对**本轮已执行**的 job 向对应机器人发送巡检结果（**成功或失败均发**；非整点仍仅失败告警）。到期后 `enabled: false` 恢复常态。
 
 | 监控 | 环境变量 | 配置 |
 |------|----------|------|
@@ -133,4 +133,4 @@ Windows 计划任务可直接跑 `scripts/run_health_monitor.ps1`（同样会加
 
 示例见 `config/wecom.env.example`。联调可用 **`--notify-success`** / **`-NotifySuccess`**（每轮全部 job 成功时发 ELK 机器人汇总，与整点 trial 互斥）。
 
-**`--no-notify`** 可关闭全部通知（含整点成功）。
+**`--no-notify`** 可关闭全部通知（含整点巡检）。

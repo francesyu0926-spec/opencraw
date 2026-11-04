@@ -5,7 +5,7 @@
 # - 07:00–20:30  自动化写稿验证，每 5 分钟（到期任务才执行 verify run --due）
 #
 # 任务计划：每天重复，间隔 5 分钟触发调度器（见 dispatcher_interval_minutes）。
-# 至 2026-11-11：整点 (:00) 执行且成功的 job 会发企微（notify_success_trial，无需 -NotifySuccess）。
+# 至 2026-11-11：整点 (:00) 已执行的 job 发企微巡检（成/败均发，notify_success_trial）。
 # 程序：powershell.exe -ExecutionPolicy Bypass -File scripts\run_monitor_production.ps1
 
 param(

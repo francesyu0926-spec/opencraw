@@ -9,7 +9,7 @@ from datetime import datetime, time
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
-from .env_file import load_all_monitor_env_files
+from .env_file import load_all_monitor_env_files, load_writing_monitor_env_files
 from .notifier import send_text_message
 from .schedule_config import (
     ScheduledJob,
@@ -25,54 +25,82 @@ _JOB_NOTIFY_CHANNEL: dict[str, str] = {
 }
 
 
-def _job_success_message(job_id: str, info: dict, now: datetime) -> str:
-    detail = info.get("detail") or {}
+def _job_hourly_report_message(job_id: str, info: dict, now: datetime) -> str:
+    code = int(info.get("exit_code", 1))
+    ok = code == 0
+    detail = info.get("detail") if isinstance(info.get("detail"), dict) else {}
     lines = [
-        f"【opencraw 监控成功】{job_id}",
+        f"【opencraw 整点巡检·{'成功' if ok else '失败'}】{job_id}",
         f"时间: {now.strftime('%Y-%m-%d %H:%M:%S')}",
         info.get("description") or "",
     ]
-    if job_id == "health" and isinstance(detail, dict):
+    if job_id == "health" and detail:
         lines.append(
             f"root={detail.get('root_status', '?')} checks={detail.get('check_count', '?')}"
         )
-    elif job_id == "ws" and isinstance(detail, dict):
+        if not ok:
+            err = detail.get("error") or detail.get("wecom_message")
+            if err:
+                lines.append(str(err))
+    elif job_id == "ws" and detail:
         lines.append(
             f"messages={detail.get('messages_received', '?')} "
             f"quoteItems={'ok' if detail.get('quote_items_ok') else '?'}"
         )
-    elif job_id == "elk" and isinstance(detail, dict):
+        if not ok and detail.get("error"):
+            lines.append(str(detail["error"]))
+    elif job_id == "elk" and detail:
         lines.append(
             f"hits={detail.get('hit_count', '?')} alerts={detail.get('alert_count', 0)}"
         )
-    elif job_id == "writing" and isinstance(detail, dict):
-        results = detail.get("results") or []
-        passed = sum(1 for r in results if r.get("status") == "passed")
-        lines.append(f"写稿验证: 共 {len(results)} 项，通过 {passed} 项")
-    else:
-        lines.append("exit=0")
+        if not ok:
+            for alert in (detail.get("alerts") or [])[:5]:
+                if isinstance(alert, dict) and alert.get("message"):
+                    lines.append(str(alert["message"]))
+    elif job_id == "writing" and detail:
+        task_results = detail.get("results") or []
+        passed = sum(1 for r in task_results if r.get("status") == "passed")
+        failed = sum(
+            1
+            for r in task_results
+            if r.get("status") in ("failed", "error")
+        )
+        lines.append(
+            f"写稿验证: 共 {len(task_results)} 项，通过 {passed} 项，失败/错误 {failed} 项"
+        )
+        if not ok:
+            for row in task_results:
+                if row.get("status") in ("failed", "error"):
+                    lines.append(f"- {row.get('task')}: {row.get('message')}")
+    elif not ok and info.get("error"):
+        lines.append(str(info["error"]))
+    lines.append(f"exit_code={code}")
     return "\n".join(line for line in lines if line).strip()
 
 
-def _notify_trial_hourly_successes(
+def _notify_trial_hourly_reports(
     results: dict[str, dict],
     *,
     now: datetime,
     no_notify: bool,
     dry_run: bool,
 ) -> dict[str, dict]:
+    """整点向各 job 对应企微发送本轮结果（成功或失败均发送）。"""
     if no_notify or dry_run or not results:
         return {}
     out: dict[str, dict] = {}
     for job_id, info in results.items():
-        if int(info.get("exit_code", 1)) != 0:
-            continue
         channel = _JOB_NOTIFY_CHANNEL.get(job_id, "elk")
-        ok, msg = send_text_message(
-            _job_success_message(job_id, info, now),
+        ok_send, msg = send_text_message(
+            _job_hourly_report_message(job_id, info, now),
             channel=channel,
         )
-        out[job_id] = {"ok": ok, "message": msg, "channel": channel}
+        out[job_id] = {
+            "ok": ok_send,
+            "message": msg,
+            "channel": channel,
+            "exit_code": int(info.get("exit_code", 1)),
+        }
     return out
 
 
@@ -205,8 +233,10 @@ def run_scheduled_monitors(
         print(f"schedule config not found: {schedule_path}", file=sys.stderr)
         return 2
 
-    load_all_monitor_env_files(anchor=schedule_path)
+    repo_root = load_all_monitor_env_files(anchor=schedule_path)
+    load_writing_monitor_env_files(repo_root=repo_root)
     cfg = load_monitor_schedule(schedule_path)
+    tz = ZoneInfo(cfg.timezone)
     now = _resolve_now(cfg.timezone, at)
 
     results: dict[str, dict] = {}
@@ -248,14 +278,28 @@ def run_scheduled_monitors(
 
     success_notify_ok: bool | None = None
     success_notify_msg = ""
-    trial_hourly_success = notify_success_trial_active(
-        now, cfg.notify_success_trial
-    )
-    job_success_notifies: dict[str, dict] = {}
-    if trial_hourly_success:
-        job_success_notifies = _notify_trial_hourly_successes(
+    end_now = datetime.now(tz) if at is None else now
+    trial_hourly_active = notify_success_trial_active(
+        end_now, cfg.notify_success_trial
+    ) or notify_success_trial_active(now, cfg.notify_success_trial)
+    job_hourly_notifies: dict[str, dict] = {}
+    trial_skip_reason: str | None = None
+    if cfg.notify_success_trial and cfg.notify_success_trial.enabled:
+        if not trial_hourly_active:
+            trial_skip_reason = (
+                f"not_on_hour (start={now.strftime('%H:%M:%S')}, "
+                f"end={end_now.strftime('%H:%M:%S')})"
+            )
+        elif not results:
+            trial_skip_reason = "no_jobs_ran"
+        elif no_notify:
+            trial_skip_reason = "no_notify"
+        elif dry_run:
+            trial_skip_reason = "dry_run"
+    if trial_hourly_active:
+        job_hourly_notifies = _notify_trial_hourly_reports(
             results,
-            now=now,
+            now=end_now,
             no_notify=no_notify,
             dry_run=dry_run,
         )
@@ -265,7 +309,7 @@ def run_scheduled_monitors(
     )
     if (
         notify_success
-        and not trial_hourly_success
+        and not trial_hourly_active
         and not no_notify
         and not dry_run
         and all_run_ok
@@ -317,9 +361,12 @@ def run_scheduled_monitors(
         if success_notify_ok is not None:
             payload["wecom_success_notify"] = success_notify_ok
             payload["wecom_success_message"] = success_notify_msg
-        if job_success_notifies:
-            payload["wecom_job_success_notifies"] = job_success_notifies
+        if job_hourly_notifies:
+            payload["wecom_job_hourly_notifies"] = job_hourly_notifies
+            payload["wecom_job_success_notifies"] = job_hourly_notifies
             payload["notify_success_trial_hourly"] = True
+        if trial_skip_reason:
+            payload["notify_success_trial_skipped"] = trial_skip_reason
         print(json.dumps(payload, ensure_ascii=False, indent=2))
     else:
         print(

@@ -9,7 +9,7 @@ import yaml
 
 @dataclass(frozen=True)
 class NotifySuccessTrial:
-    """Temporary policy: send WeCom when jobs succeed (e.g. on the hour for 7 days)."""
+    """Temporary policy: on the hour, WeCom report per job (success or failure)."""
 
     enabled: bool = False
     on_hour_only: bool = True
@@ -47,13 +47,21 @@ def _parse_notify_success_trial(data: dict) -> NotifySuccessTrial | None:
     )
 
 
+def is_on_hour_tick(now: datetime, *, grace_seconds: int = 45) -> bool:
+    """True on clock hour (:00), including runs that finish within grace before :00."""
+    if now.minute == 0:
+        return True
+    secs_to_next_hour = (60 - now.minute) * 60 - now.second
+    return 0 < secs_to_next_hour <= grace_seconds
+
+
 def notify_success_trial_active(
     now: datetime,
     trial: NotifySuccessTrial | None,
 ) -> bool:
     if trial is None or not trial.enabled:
         return False
-    if trial.on_hour_only and now.minute != 0:
+    if trial.on_hour_only and not is_on_hour_tick(now):
         return False
     if trial.until:
         try:
