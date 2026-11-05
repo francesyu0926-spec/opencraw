@@ -25,8 +25,10 @@ class MonitorScheduleRunnerTests(unittest.TestCase):
 
     def test_ws_every_ten_minutes(self) -> None:
         job = self.cfg.jobs["ws"]
+        d = self.cfg.dispatcher_interval_minutes
         self.assertTrue(is_job_due(self._at("10:10"), job))
-        self.assertFalse(is_job_due(self._at("10:05"), job))
+        self.assertTrue(is_job_due(self._at("10:05"), job, d))
+        self.assertFalse(is_job_due(self._at("10:03"), job, d))
 
     def test_elk_window_and_interval(self) -> None:
         job = self.cfg.jobs["elk"]

@@ -18,6 +18,43 @@ from .quotes_es import build_query_from_config, default_indices, search_hits
 MONITOR_MODE = "elk"
 
 
+def namespace_for_elk_run(
+    *,
+    config: str,
+    at: str | None = None,
+    as_json: bool = False,
+    dry_run: bool = False,
+    notify: bool = False,
+    no_notify: bool = False,
+) -> argparse.Namespace:
+    """Minimal args for run_monitor() ELK path (used by schedule_runner)."""
+    return argparse.Namespace(
+        config=config,
+        task_ids=None,
+        at=at,
+        json=as_json,
+        dry_run=dry_run,
+        notify=notify,
+        no_notify=no_notify,
+        check_elk=False,
+        print_elk_query=False,
+        ws_monitor=False,
+        ws_config="config/ws_monitor.yaml",
+        ws_daemon=False,
+        health_monitor=False,
+        health_config="config/health_monitor.yaml",
+        writing_monitor=False,
+        writing_config="config/writing_monitor.yaml",
+        run_scheduled=False,
+        schedule_config="config/monitor_schedule.yaml",
+        job_ids=None,
+        force_scheduled=False,
+        notify_success=False,
+        check_wecom=False,
+        send_wecom_test=False,
+    )
+
+
 def _parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(
         description="§2.1 定时任务监控（mdimonitor/test_quotes_es 逻辑，仅 ELK）",
@@ -100,6 +137,16 @@ def _parse_args() -> argparse.Namespace:
         action="store_true",
         help="（可选）每轮全部 job 成功时发 ELK 企微汇总；整点成功见 monitor_schedule notify_success_trial",
     )
+    p.add_argument(
+        "--check-wecom",
+        action="store_true",
+        help="检查各 channel 的企微 webhook 是否已配置",
+    )
+    p.add_argument(
+        "--send-wecom-test",
+        action="store_true",
+        help="配合 --check-wecom，向已配置的机器人发送测试消息",
+    )
     return p.parse_args()
 
 
@@ -114,6 +161,16 @@ def _resolve_now(cfg_tz: str, at: str | None) -> datetime:
 
 
 def run_monitor(args: argparse.Namespace) -> int:
+    if args.check_wecom:
+        from .env_file import load_all_monitor_env_files
+        from .wecom_diag import run_check_wecom
+
+        load_all_monitor_env_files()
+        return run_check_wecom(
+            send_test=args.send_wecom_test,
+            as_json=args.json,
+        )
+
     if args.run_scheduled:
         from .schedule_runner import run_scheduled_monitors
 

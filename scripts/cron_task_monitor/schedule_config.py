@@ -14,6 +14,7 @@ class NotifySuccessTrial:
     enabled: bool = False
     on_hour_only: bool = True
     until: str | None = None  # YYYY-MM-DD in schedule timezone (inclusive)
+    heartbeat_if_no_jobs: bool = True
 
 
 @dataclass(frozen=True)
@@ -44,6 +45,7 @@ def _parse_notify_success_trial(data: dict) -> NotifySuccessTrial | None:
         enabled=bool(raw.get("enabled", False)),
         on_hour_only=bool(raw.get("on_hour_only", True)),
         until=str(until).strip() if until else None,
+        heartbeat_if_no_jobs=bool(raw.get("heartbeat_if_no_jobs", True)),
     )
 
 

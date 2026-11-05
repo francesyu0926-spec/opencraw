@@ -9,6 +9,7 @@ notify_success_trial:
   enabled: true
   on_hour_only: true
   until: "2026-11-11"
+  heartbeat_if_no_jobs: true
 
 jobs:
   elk:

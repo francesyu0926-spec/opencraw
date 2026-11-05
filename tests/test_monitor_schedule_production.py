@@ -22,8 +22,9 @@ class ProductionScheduleTests(unittest.TestCase):
 
     def test_elk_midnight_window(self) -> None:
         job = self.cfg.jobs["elk"]
-        self.assertTrue(is_job_due(self._at("00:00"), job))
-        self.assertTrue(is_job_due(self._at("05:00"), job))
+        d = self.cfg.dispatcher_interval_minutes
+        self.assertTrue(is_job_due(self._at("00:00"), job, d))
+        self.assertTrue(is_job_due(self._at("05:00"), job, d))
         self.assertFalse(is_job_due(self._at("05:15"), job))
         self.assertFalse(is_job_due(self._at("09:00"), job))
 
@@ -34,8 +35,19 @@ class ProductionScheduleTests(unittest.TestCase):
         self.assertTrue(is_job_due(self._at("09:00"), job))
         self.assertTrue(is_job_due(self._at("15:30"), job))
         self.assertFalse(is_job_due(self._at("15:45"), job))
-        self.assertFalse(is_job_due(self._at("09:05"), job))
+        self.assertTrue(
+            is_job_due(self._at("09:05"), job, self.cfg.dispatcher_interval_minutes)
+        )
         self.assertTrue(is_job_due(self._at("09:10"), job))
+        self.assertFalse(
+            is_job_due(self._at("09:33"), job, self.cfg.dispatcher_interval_minutes)
+        )
+
+    def test_health_catch_up_on_dispatcher_tick(self) -> None:
+        job = self.cfg.jobs["health"]
+        d = self.cfg.dispatcher_interval_minutes
+        self.assertFalse(is_job_due(self._at("09:33"), job, d))
+        self.assertTrue(is_job_due(self._at("09:35"), job, d))
 
     def test_health_extended_window(self) -> None:
         job = self.cfg.jobs["health"]

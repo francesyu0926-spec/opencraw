@@ -11,6 +11,7 @@ from zoneinfo import ZoneInfo
 
 from .env_file import load_all_monitor_env_files, load_writing_monitor_env_files
 from .notifier import send_text_message
+from .wecom_diag import warn_missing_webhooks
 from .schedule_config import (
     ScheduledJob,
     load_monitor_schedule,
@@ -101,6 +102,11 @@ def _notify_trial_hourly_reports(
             "channel": channel,
             "exit_code": int(info.get("exit_code", 1)),
         }
+        if not ok_send:
+            print(
+                f"WARN: 整点企微发送失败 job={job_id} channel={channel}: {msg}",
+                file=sys.stderr,
+            )
     return out
 
 
@@ -120,13 +126,25 @@ def _in_active_window(now: datetime, start_hhmm: str | None, end_hhmm: str | Non
     return t >= start_t or t <= end_t
 
 
-def is_job_due(now: datetime, job: ScheduledJob) -> bool:
+def is_job_due(
+    now: datetime,
+    job: ScheduledJob,
+    dispatcher_interval_minutes: int = 5,
+) -> bool:
+    """Job due on exact interval minute, or once on a dispatcher tick shortly after a missed slot."""
     if not job.enabled:
         return False
     if not _in_active_window(now, job.active_start, job.active_end):
         return False
+    interval = max(1, job.interval_minutes)
+    dispatcher = max(1, dispatcher_interval_minutes)
     minute_of_day = now.hour * 60 + now.minute
-    return minute_of_day % job.interval_minutes == 0
+    remainder = minute_of_day % interval
+    if remainder == 0:
+        return True
+    if remainder > dispatcher:
+        return False
+    return now.minute % dispatcher == 0
 
 
 def _resolve_now(tz_name: str, at: str | None) -> datetime:
@@ -165,25 +183,13 @@ def _run_single_job(
         from . import __main__ as monitor_main
 
         def runner(path: Path, **kwargs):  # type: ignore[misc]
-            args = argparse.Namespace(
-                health_monitor=False,
-                ws_monitor=False,
-                ws_daemon=False,
-                ws_config="config/ws_monitor.yaml",
-                health_config="config/health_monitor.yaml",
+            args = monitor_main.namespace_for_elk_run(
                 config=str(path),
-                task_ids=None,
                 at=kwargs.get("at"),
-                json=kwargs.get("as_json", False),
-                dry_run=kwargs.get("dry_run", False),
-                notify=kwargs.get("notify", False),
-                no_notify=kwargs.get("no_notify", False),
-                check_elk=False,
-                print_elk_query=False,
-                run_scheduled=False,
-                schedule_config="config/monitor_schedule.yaml",
-                job_ids=None,
-                force_scheduled=False,
+                as_json=bool(kwargs.get("as_json", False)),
+                dry_run=bool(kwargs.get("dry_run", False)),
+                notify=bool(kwargs.get("notify", False)),
+                no_notify=bool(kwargs.get("no_notify", False)),
             )
             return monitor_main.run_monitor(args)
 
@@ -249,7 +255,9 @@ def run_scheduled_monitors(
         if not job.enabled:
             skipped.append({"job": job_id, "reason": "disabled"})
             continue
-        due = force or is_job_due(now, job)
+        due = force or is_job_due(
+            now, job, cfg.dispatcher_interval_minutes
+        )
         if not due:
             skipped.append({"job": job_id, "reason": "not_due"})
             continue
@@ -296,13 +304,32 @@ def run_scheduled_monitors(
             trial_skip_reason = "no_notify"
         elif dry_run:
             trial_skip_reason = "dry_run"
+    hourly_heartbeat: dict | None = None
+    if trial_hourly_active and not no_notify and not dry_run:
+        warn_missing_webhooks()
     if trial_hourly_active:
-        job_hourly_notifies = _notify_trial_hourly_reports(
-            results,
-            now=end_now,
-            no_notify=no_notify,
-            dry_run=dry_run,
-        )
+        if results:
+            job_hourly_notifies = _notify_trial_hourly_reports(
+                results,
+                now=end_now,
+                no_notify=no_notify,
+                dry_run=dry_run,
+            )
+        elif (
+            not no_notify
+            and not dry_run
+            and cfg.notify_success_trial
+            and cfg.notify_success_trial.heartbeat_if_no_jobs
+        ):
+            skip_lines = [f"{s['job']}({s['reason']})" for s in skipped]
+            body = (
+                f"【opencraw 整点调度】{end_now.strftime('%Y-%m-%d %H:%M')}\n"
+                "本轮无到期 job（调度器正常）。\n"
+                f"跳过: {', '.join(skip_lines) or '无'}"
+            )
+            ok, msg = send_text_message(body, channel="elk")
+            hourly_heartbeat = {"ok": ok, "message": msg, "channel": "elk"}
+            trial_skip_reason = None
 
     all_run_ok = bool(results) and all(
         int(info.get("exit_code", 1)) == 0 for info in results.values()
@@ -367,6 +394,8 @@ def run_scheduled_monitors(
             payload["notify_success_trial_hourly"] = True
         if trial_skip_reason:
             payload["notify_success_trial_skipped"] = trial_skip_reason
+        if hourly_heartbeat is not None:
+            payload["wecom_hourly_heartbeat"] = hourly_heartbeat
         print(json.dumps(payload, ensure_ascii=False, indent=2))
     else:
         print(
