@@ -25,7 +25,7 @@ wecom:
   webhook_env: WECOM_WEBHOOK_URL_ELK
 
 elasticsearch:
-  url: http://dcelk.sfccn.com:9200
+  url: http://43.139.37.118:9200
   username: quotemonitor
   message_field: msg
   # query_time_mode=batch_window 时以下两项忽略；改为 elastic 模式时生效
