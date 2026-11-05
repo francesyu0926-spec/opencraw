@@ -10,7 +10,8 @@ from pathlib import Path
 from zoneinfo import ZoneInfo
 
 from .env_file import load_all_monitor_env_files, load_writing_monitor_env_files
-from .notifier import send_text_message
+from .notifier import send_markdown_message
+from .wecom_format import JOB_LABELS, failure_note_for_job, monitor_report_markdown
 from .wecom_diag import warn_missing_webhooks
 from .schedule_config import (
     ScheduledJob,
@@ -28,55 +29,14 @@ _JOB_NOTIFY_CHANNEL: dict[str, str] = {
 
 def _job_hourly_report_message(job_id: str, info: dict, now: datetime) -> str:
     code = int(info.get("exit_code", 1))
-    ok = code == 0
-    detail = info.get("detail") if isinstance(info.get("detail"), dict) else {}
-    lines = [
-        f"【opencraw 整点巡检·{'成功' if ok else '失败'}】{job_id}",
-        f"时间: {now.strftime('%Y-%m-%d %H:%M:%S')}",
-        info.get("description") or "",
-    ]
-    if job_id == "health" and detail:
-        lines.append(
-            f"root={detail.get('root_status', '?')} checks={detail.get('check_count', '?')}"
-        )
-        if not ok:
-            err = detail.get("error") or detail.get("wecom_message")
-            if err:
-                lines.append(str(err))
-    elif job_id == "ws" and detail:
-        lines.append(
-            f"messages={detail.get('messages_received', '?')} "
-            f"quoteItems={'ok' if detail.get('quote_items_ok') else '?'}"
-        )
-        if not ok and detail.get("error"):
-            lines.append(str(detail["error"]))
-    elif job_id == "elk" and detail:
-        lines.append(
-            f"hits={detail.get('hit_count', '?')} alerts={detail.get('alert_count', 0)}"
-        )
-        if not ok:
-            for alert in (detail.get("alerts") or [])[:5]:
-                if isinstance(alert, dict) and alert.get("message"):
-                    lines.append(str(alert["message"]))
-    elif job_id == "writing" and detail:
-        task_results = detail.get("results") or []
-        passed = sum(1 for r in task_results if r.get("status") == "passed")
-        failed = sum(
-            1
-            for r in task_results
-            if r.get("status") in ("failed", "error")
-        )
-        lines.append(
-            f"写稿验证: 共 {len(task_results)} 项，通过 {passed} 项，失败/错误 {failed} 项"
-        )
-        if not ok:
-            for row in task_results:
-                if row.get("status") in ("failed", "error"):
-                    lines.append(f"- {row.get('task')}: {row.get('message')}")
-    elif not ok and info.get("error"):
-        lines.append(str(info["error"]))
-    lines.append(f"exit_code={code}")
-    return "\n".join(line for line in lines if line).strip()
+    passed = code == 0
+    note = failure_note_for_job(job_id, info) if not passed else ""
+    return monitor_report_markdown(
+        checked_at=now.strftime("%Y-%m-%d %H:%M:%S"),
+        passed=passed,
+        monitor_item=JOB_LABELS.get(job_id, job_id),
+        note=note,
+    )
 
 
 def _notify_trial_hourly_reports(
@@ -92,7 +52,7 @@ def _notify_trial_hourly_reports(
     out: dict[str, dict] = {}
     for job_id, info in results.items():
         channel = _JOB_NOTIFY_CHANNEL.get(job_id, "elk")
-        ok_send, msg = send_text_message(
+        ok_send, msg = send_markdown_message(
             _job_hourly_report_message(job_id, info, now),
             channel=channel,
         )
@@ -321,13 +281,14 @@ def run_scheduled_monitors(
             and cfg.notify_success_trial
             and cfg.notify_success_trial.heartbeat_if_no_jobs
         ):
-            skip_lines = [f"{s['job']}({s['reason']})" for s in skipped]
-            body = (
-                f"【opencraw 整点调度】{end_now.strftime('%Y-%m-%d %H:%M')}\n"
-                "本轮无到期 job（调度器正常）。\n"
-                f"跳过: {', '.join(skip_lines) or '无'}"
+            body = monitor_report_markdown(
+                title="终端接口监控测试报告",
+                checked_at=end_now.strftime("%Y-%m-%d %H:%M:%S"),
+                passed=True,
+                monitor_item="统一调度",
+                note="本轮无到期任务，调度器正常",
             )
-            ok, msg = send_text_message(body, channel="elk")
+            ok, msg = send_markdown_message(body, channel="elk")
             hourly_heartbeat = {"ok": ok, "message": msg, "channel": "elk"}
             trial_skip_reason = None
 
@@ -342,34 +303,14 @@ def run_scheduled_monitors(
         and all_run_ok
         and exit_code == 0
     ):
-        lines = [
-            "【opencraw 统一监控】本轮探活全部成功",
-            f"时间: {now.isoformat()}",
-            f"已执行: {', '.join(results.keys()) or '无'}",
-        ]
-        for jid, info in results.items():
-            detail = info.get("detail") or {}
-            if jid == "health" and isinstance(detail, dict):
-                lines.append(
-                    f"- health: root={detail.get('root_status', '?')} "
-                    f"checks={detail.get('check_count', '?')}"
-                )
-            elif jid == "ws" and isinstance(detail, dict):
-                lines.append(
-                    f"- ws: messages={detail.get('messages_received', '?')} "
-                    f"quoteItems={'ok' if detail.get('quote_items_ok') else '?'}"
-                )
-            elif jid == "elk" and isinstance(detail, dict):
-                lines.append(
-                    f"- elk: hits={detail.get('hit_count', '?')} "
-                    f"alerts={detail.get('alert_count', 0)}"
-                )
-            else:
-                lines.append(f"- {jid}: exit=0")
-        if skipped:
-            lines.append(f"跳过: {', '.join(s['job'] for s in skipped)}")
-        success_notify_ok, success_notify_msg = send_text_message(
-            "\n".join(lines),
+        ran = "、".join(JOB_LABELS.get(j, j) for j in results.keys()) or "无"
+        body = monitor_report_markdown(
+            checked_at=now.strftime("%Y-%m-%d %H:%M:%S"),
+            passed=True,
+            monitor_item=f"统一调度（{ran}）",
+        )
+        success_notify_ok, success_notify_msg = send_markdown_message(
+            body,
             channel="elk",
         )
 

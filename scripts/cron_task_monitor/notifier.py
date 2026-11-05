@@ -6,7 +6,11 @@ import urllib.error
 import urllib.request
 from typing import Any
 
+from datetime import datetime
+from zoneinfo import ZoneInfo
+
 from .models import Alert
+from .wecom_format import monitor_report_markdown
 
 
 def format_alert_text(alerts: list[Alert], *, title: str | None = None) -> str:
@@ -92,12 +96,33 @@ def _is_wecom_webhook(url: str) -> bool:
     return "qyapi.weixin.qq.com" in url
 
 
+def _alerts_markdown(alerts: list[Alert]) -> str:
+    first = alerts[0]
+    item = (first.task_name or first.task_id or "监控").strip()
+    notes = [
+        f"{(a.task_name or a.task_id or '监控').strip()}：{a.message.strip()}"
+        for a in alerts[:5]
+    ]
+    note = notes[0] if len(notes) == 1 else "；".join(notes)
+    return monitor_report_markdown(
+        checked_at=datetime.now(ZoneInfo("Asia/Shanghai")).strftime(
+            "%Y-%m-%d %H:%M:%S"
+        ),
+        passed=False,
+        monitor_item=item,
+        note=note,
+    )
+
+
 def _build_payload(
     url: str, alerts: list[Alert], *, title: str | None = None
 ) -> dict[str, Any]:
-    text = format_alert_text(alerts, title=title)
     if _is_wecom_webhook(url):
-        return {"msgtype": "text", "text": {"content": text}}
+        return {
+            "msgtype": "markdown",
+            "markdown": {"content": _alerts_markdown(alerts)},
+        }
+    text = format_alert_text(alerts, title=title)
     return {
         "text": text,
         "alerts": [
@@ -112,6 +137,59 @@ def _build_payload(
             for a in alerts
         ],
     }
+
+
+def send_markdown_message(
+    content: str,
+    *,
+    webhook_env: str | None = None,
+    channel: str = "elk",
+) -> tuple[bool, str]:
+    """发送企微 markdown（监控报告等）。"""
+    if channel == "ws":
+        url = resolve_webhook_url_ws(webhook_env)
+        missing = webhook_env or DEFAULT_WEBHOOK_ENV_WS
+    elif channel == "health":
+        url = resolve_webhook_url_health(webhook_env)
+        missing = webhook_env or DEFAULT_WEBHOOK_ENV_HEALTH
+    elif channel == "writing":
+        url = resolve_webhook_url_writing(webhook_env)
+        missing = webhook_env or DEFAULT_WEBHOOK_ENV_WRITING
+    else:
+        url = resolve_webhook_url(webhook_env or DEFAULT_WEBHOOK_ENV_ELK)
+        missing = webhook_env or DEFAULT_WEBHOOK_ENV_ELK
+
+    if not url:
+        return False, f"未配置环境变量 {missing}"
+    text = content.strip()
+    if not text:
+        return False, "空消息"
+
+    payload = (
+        {"msgtype": "markdown", "markdown": {"content": text}}
+        if _is_wecom_webhook(url)
+        else {"markdown": text}
+    )
+    req = urllib.request.Request(
+        url,
+        data=json.dumps(payload, ensure_ascii=False).encode("utf-8"),
+        headers={"Content-Type": "application/json; charset=utf-8"},
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            body = resp.read().decode("utf-8")
+        if _is_wecom_webhook(url):
+            data = json.loads(body)
+            if data.get("errcode") == 0:
+                return True, "企业微信发送成功"
+            return False, f"企业微信返回 errcode={data.get('errcode')} errmsg={data.get('errmsg')}"
+        return True, "Webhook 发送成功"
+    except urllib.error.HTTPError as e:
+        detail = e.read().decode("utf-8", errors="replace")[:200]
+        return False, f"HTTP {e.code}: {detail}"
+    except (urllib.error.URLError, TimeoutError, json.JSONDecodeError) as e:
+        return False, str(e)
 
 
 def send_text_message(

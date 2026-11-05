@@ -7,7 +7,7 @@ import requests
 
 from verify.checker import CheckResult, CheckStatus
 from verify.logger import get_logger
-from verify.tasks import now, today_str
+from verify.tasks import now
 
 DEFAULT_TIMEOUT = 10
 
@@ -17,32 +17,27 @@ def webhook_url() -> str | None:
     return url or None
 
 
-def _format_failure_lines(results: Iterable[CheckResult]) -> list[str]:
-    lines: list[str] = []
-    for item in results:
-        if item.status not in (CheckStatus.FAILED, CheckStatus.ERROR):
-            continue
-        status = "失败" if item.status == CheckStatus.FAILED else "错误"
-        line = f"> **{item.task}** [{status}]：{item.message}"
-        if item.matched_title:
-            line += f"\n> 匹配标题：{item.matched_title}"
-        lines.append(line)
-    return lines
-
-
 def build_alert_content(results: Iterable[CheckResult], source: str = "run") -> str | None:
-    lines = _format_failure_lines(results)
-    if not lines:
+    failed = [
+        item
+        for item in results
+        if item.status in (CheckStatus.FAILED, CheckStatus.ERROR)
+    ]
+    if not failed:
         return None
 
     checked_at = now().strftime("%Y-%m-%d %H:%M:%S")
-    header = (
-        f"### 自动化写稿任务监测告警\n"
-        f"> 日期：{today_str()}\n"
+    first = failed[0]
+    status = "失败" if first.status == CheckStatus.FAILED else "错误"
+    note = f"{first.task} [{status}]：{first.message}"
+    return (
+        f"### 终端接口监控测试报告\n"
         f"> 时间：{checked_at}\n"
-        f"> 来源：{source}\n"
+        f"> 监控项：自动化写稿\n"
+        f"\n"
+        f'结论：<font color="warning">未通过</font>\n'
+        f"> 说明：{note}"
     )
-    return header + "\n".join(lines)
 
 
 def send_wechat_markdown(content: str) -> bool:
