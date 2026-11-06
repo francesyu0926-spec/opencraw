@@ -35,7 +35,12 @@ foreach ($f in @(
 }
 
 # 文档
-foreach ($f in @("DEPLOY.md", "cron_task_monitor.md", "MIGRATION.md")) {
+foreach ($f in @(
+        "DEPLOY.md",
+        "cron_task_monitor.md",
+        "MIGRATION.md",
+        "opencraw-monitor-schedule.pdf"
+    )) {
     Copy-IfExists (Join-Path $RepoRoot "docs\$f") (Join-Path $staging "docs\$f")
 }
 
@@ -56,6 +61,7 @@ $scriptNames = @(
     "run_monitor_production.sh",
     "register_monitor_scheduled_task.ps1",
     "server_diagnose.sh",
+    "export_schedule_pdf.py",
     "run_dispatcher_loop.sh",
     "run_health_monitor.ps1",
     "run_monitor_scheduled.ps1",
