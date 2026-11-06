@@ -42,6 +42,10 @@ def main() -> None:
         print(
             f"成功企微截止: {until_all}（之后 health/ws 整点与 ELK/写稿跑完均仅失败发）"
         )
+    print(
+        "企微日界: health / ws 每天 **首次** 与 **末次** 执行各发一条（成败均发；"
+        "与整点重复时只发整点一条）"
+    )
     print()
 
     print("=== 四大监控 Job ===")

@@ -16,6 +16,7 @@ from .env_file import load_all_monitor_env_files, load_writing_monitor_env_files
 from .notifier import send_markdown_message
 from .wecom_format import JOB_LABELS, failure_note_for_job, monitor_report_markdown
 from .wecom_diag import warn_missing_webhooks
+from .daily_boundary import daily_boundary_kind
 from .schedule_config import (
     ScheduledJob,
     load_monitor_schedule,
@@ -443,6 +444,45 @@ def run_scheduled_monitors(
             hourly_heartbeat = {"ok": ok, "message": msg, "channel": "health"}
             trial_skip_reason = None
 
+    job_daily_boundary_notifies: dict[str, dict] = {}
+    if not no_notify and not dry_run:
+        for job_id in ("health", "ws"):
+            if job_id not in results or _run_result_skipped(results[job_id]):
+                continue
+            job = cfg.jobs.get(job_id)
+            if job is None:
+                continue
+            boundary = daily_boundary_kind(end_now, job)
+            if boundary is None:
+                continue
+            if job_id in job_hourly_notifies and trial_hourly_active:
+                continue
+            label = JOB_LABELS.get(job_id, job_id)
+            tag = "当日首次" if boundary == "first" else "当日末次"
+            info = dict(results[job_id])
+            note_extra = f"{tag}执行"
+            existing = failure_note_for_job(job_id, info) if int(info.get("exit_code", 1)) != 0 else ""
+            note = f"{note_extra}；{existing}" if existing else note_extra
+            body = monitor_report_markdown(
+                checked_at=end_now.strftime("%Y-%m-%d %H:%M:%S"),
+                passed=int(info.get("exit_code", 1)) == 0,
+                monitor_item=label,
+                note=note,
+            )
+            channel = _JOB_NOTIFY_CHANNEL.get(job_id, "health")
+            ok_send, msg = send_markdown_message(body, channel=channel)
+            job_daily_boundary_notifies[job_id] = {
+                "ok": ok_send,
+                "message": msg,
+                "channel": channel,
+                "boundary": boundary,
+            }
+            if not ok_send:
+                print(
+                    f"WARN: 企微日界发送失败 job={job_id} boundary={boundary}: {msg}",
+                    file=sys.stderr,
+                )
+
     all_run_ok = bool(results) and all(
         int(info.get("exit_code", 1)) == 0 for info in results.values()
     )
@@ -484,6 +524,8 @@ def run_scheduled_monitors(
         if job_hourly_notifies:
             payload["wecom_job_hourly_notifies"] = job_hourly_notifies
             payload["notify_success_trial_hourly"] = True
+        if job_daily_boundary_notifies:
+            payload["wecom_job_daily_boundary_notifies"] = job_daily_boundary_notifies
         run_complete = {
             jid: info["wecom_run_notify"]
             for jid, info in results.items()
