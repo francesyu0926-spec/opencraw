@@ -30,9 +30,15 @@ python -m scripts.cron_task_monitor --run-scheduled \
   --schedule-config config/monitor_schedule.production.yaml --json
 ```
 
-**Windows 任务计划**：每天重复，间隔 **5 分钟**（触发调度器）；程序见上。
+**Windows 任务计划**：每天重复，间隔 **5 分钟**（触发调度器）。注册：
 
-**Linux cron**：`*/5 * * * * .../run_monitor_production.sh`（见 `config/schedule.example.cron`）。
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\register_monitor_scheduled_task.ps1
+```
+
+（工作目录=仓库根，任务动作使用 `scripts\run_monitor_production.ps1`，无写死的盘符路径。）
+
+**Linux cron**：先 `cd` 到仓库根再 `./scripts/run_monitor_production.sh`（见 `config/schedule.example.cron`）。
 
 ## 统一调度（开发/旧表）
 

@@ -4,7 +4,8 @@
 # 详见 docs/cron_task_monitor.md 或 python scripts/print_schedule.py
 #
 # 任务计划：每天重复，间隔 5 分钟触发调度器（dispatcher_interval_minutes: 5）。
-# 程序：powershell.exe -ExecutionPolicy Bypass -File scripts\run_monitor_production.ps1
+# 程序（工作目录=仓库根）：powershell.exe -ExecutionPolicy Bypass -File scripts\run_monitor_production.ps1 -Json
+# 注册计划任务：scripts\register_monitor_scheduled_task.ps1
 
 param(
     [string]$RepoRoot = (Split-Path -Parent $PSScriptRoot),

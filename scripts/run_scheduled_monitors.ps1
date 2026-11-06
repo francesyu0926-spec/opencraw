@@ -1,6 +1,7 @@
 ﻿# 统一监控调度：HTTP health / WebSocket / ELK 数据同步（见 config/monitor_schedule.yaml）
 # 任务计划：每天重复，间隔 5 分钟（与各 job 的 5/10/15 分钟周期对齐）。
-# 程序：powershell.exe -ExecutionPolicy Bypass -File D:\Document\CODE\opencraw\scripts\run_scheduled_monitors.ps1
+# 程序（工作目录=仓库根）：powershell.exe -ExecutionPolicy Bypass -File scripts\run_scheduled_monitors.ps1 -Json
+# 注册计划任务：scripts\register_monitor_scheduled_task.ps1
 
 param(
     [string]$RepoRoot = (Split-Path -Parent $PSScriptRoot),

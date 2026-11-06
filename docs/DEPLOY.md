@@ -18,6 +18,7 @@
 | `scripts/cron_task_monitor/` | 监控程序 |
 | `scripts/run_monitor_production.ps1` | **Windows 生产调度入口** |
 | `scripts/run_monitor_production.sh` | **Linux 生产调度入口** |
+| `scripts/register_monitor_scheduled_task.ps1` | Windows 计划任务注册（相对路径） |
 | `scripts/run_scheduled_monitors.ps1` | Windows 开发/旧调度入口 |
 | `scripts/run_scheduled_monitors.sh` | Linux 开发/旧调度入口 |
 | `scripts/run_health_monitor.ps1` | 仅 health（可选） |
@@ -86,15 +87,20 @@ python -m scripts.cron_task_monitor --run-scheduled --force-scheduled --job heal
 ```bash
 chmod +x scripts/run_scheduled_monitors.sh
 crontab -e
-# 增加一行（路径按实际修改）：
-*/5 * * * * /opt/opencraw/scripts/run_scheduled_monitors.sh >> /var/log/opencraw_monitors.log 2>&1
+# 先 cd 到仓库根，再用相对路径（REPO 换成实际目录）：
+*/5 * * * * cd REPO && ./scripts/run_monitor_production.sh >> REPO/var/log/opencraw_monitors.log 2>&1
 ```
 
-**Windows 任务计划程序**：
+**Windows 任务计划程序**（推荐脚本注册，动作里只用相对路径 `scripts\...`）：
 
-1. 触发器：每天，重复 **5 分钟**，持续 **1 天**
-2. 操作：`powershell.exe -ExecutionPolicy Bypass -File D:\path\to\opencraw\scripts\run_scheduled_monitors.ps1 -Json`
-3. 密钥已通过 `config/*.env` 加载，无需在任务里写密码
+```powershell
+cd <仓库根>
+powershell -ExecutionPolicy Bypass -File scripts\register_monitor_scheduled_task.ps1
+```
+
+手动创建时：**起始于** 填仓库根目录，**程序** 填  
+`powershell.exe -ExecutionPolicy Bypass -File scripts\run_monitor_production.ps1 -Json`  
+密钥已通过 `config/*.env` 加载，无需在任务里写密码。
 
 生产调度见 **`config/monitor_schedule.production.yaml`**（Docker 默认）；说明见 [cron_task_monitor.md](./cron_task_monitor.md) 或 `python scripts/print_schedule.py`。
 
