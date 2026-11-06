@@ -243,33 +243,29 @@ def _run_single_job(
     if dry_run:
         return 0, None
 
+    def _runner_kwargs(*, json_out: bool) -> dict:
+        """Only pass kwargs each job runner accepts (health/ws have narrow signatures)."""
+        effective_no_notify = no_notify or suppress_job_wecom
+        base = {
+            "at": at,
+            "as_json": json_out,
+            "dry_run": False,
+            "notify": notify,
+            "no_notify": effective_no_notify,
+        }
+        if job.id in ("elk", "writing"):
+            base["elk_force_all_tasks"] = elk_force_all_tasks
+            base["writing_force_all"] = writing_force_all
+            base["suppress_job_wecom"] = suppress_job_wecom
+        return base
+
     if as_json:
         buf = io.StringIO()
         with redirect_stdout(buf):
-            code = runner(
-                config_path,
-                at=at,
-                as_json=True,
-                dry_run=False,
-                notify=notify,
-                no_notify=no_notify,
-                elk_force_all_tasks=elk_force_all_tasks,
-                writing_force_all=writing_force_all,
-                suppress_job_wecom=suppress_job_wecom,
-            )
+            code = runner(config_path, **_runner_kwargs(json_out=True))
         return code, buf.getvalue().strip() or None
 
-    code = runner(
-        config_path,
-        at=at,
-        as_json=False,
-        dry_run=False,
-        notify=notify,
-        no_notify=no_notify,
-        elk_force_all_tasks=elk_force_all_tasks,
-        writing_force_all=writing_force_all,
-        suppress_job_wecom=suppress_job_wecom,
-    )
+    code = runner(config_path, **_runner_kwargs(json_out=False))
     return code, None
 
 
