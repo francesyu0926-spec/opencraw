@@ -8,12 +8,12 @@ from scripts.cron_task_monitor.config_loader import load_config
 
 # PDF 第二表（logstash-zxt-terminal + 更新项）
 EXPECTED = {
-    "CBD_PUB_BOARD_INFO": ("01:00", "01:03"),
-    "CBD_BOARD_INFO": ("01:00", "01:05"),
+    "CBD_PUB_BOAR_INFO": ("01:00", "01:03"),
+    "CBD_BOAR_INFO": ("01:00", "01:05"),
     "CBD_QUOT_STK_ISS": ("01:00", "01:05"),
     "CBD_SECURITY_DICT": ("04:00", "04:05"),
     "CBD_TRD_DT_RECNT": ("01:00", "02:00"),
-    "NC_LISTSTOCK_GLANCE": ("00:00", "00:05"),
+    "NC_LISTSTOCK_GLANCE": ("01:00", "02:00"),
     "NC_TQ_SK_XDRY": ("02:40", "02:45"),
     "CBD_BD_FIN_DATA": ("04:00", "04:05"),
     "CBD_QUOT_CBND_STK": ("02:00", "02:05"),

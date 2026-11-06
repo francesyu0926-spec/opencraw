@@ -1,0 +1,35 @@
+# 统一监控调度（HTTP Health / WebSocket / ELK 数据同步）
+# 建议：Windows 任务计划或 Linux cron 每 5 分钟执行一次 scripts/run_scheduled_monitors.*
+timezone: Asia/Shanghai
+
+# 与下方 jobs 各 interval 的最小公倍数对齐（5、10、15 → 5）
+dispatcher_interval_minutes: 5
+
+jobs:
+  health:
+    enabled: true
+    description: 行情 HTTP 接口 health 探活
+    interval_minutes: 5
+    config: config/health_monitor.yaml
+
+  ws:
+    enabled: true
+    description: WebSocket 行情接口探活
+    interval_minutes: 10
+    config: config/ws_monitor.yaml
+
+  elk:
+    enabled: true
+    description: ELK 数据同步定时任务监控（§2.1）
+    interval_minutes: 15
+    active_start: "00:00"
+    active_end: "05:00"
+    config: config/cron_tasks.yaml
+
+  writing:
+    enabled: true
+    description: 自动化写稿任务验证（本地/联调）
+    interval_minutes: 5
+    active_start: "07:00"
+    active_end: "20:30"
+    config: config/writing_monitor.yaml

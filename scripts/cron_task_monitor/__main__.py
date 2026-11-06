@@ -18,6 +18,44 @@ from .quotes_es import build_query_from_config, default_indices, search_hits
 MONITOR_MODE = "elk"
 
 
+def namespace_for_elk_run(
+    *,
+    config: str,
+    at: str | None = None,
+    as_json: bool = False,
+    dry_run: bool = False,
+    notify: bool = False,
+    no_notify: bool = False,
+    task_ids: list[str] | None = None,
+) -> argparse.Namespace:
+    """Minimal args for run_monitor() ELK path (used by schedule_runner)."""
+    return argparse.Namespace(
+        config=config,
+        task_ids=task_ids,
+        at=at,
+        json=as_json,
+        dry_run=dry_run,
+        notify=notify,
+        no_notify=no_notify,
+        check_elk=False,
+        print_elk_query=False,
+        ws_monitor=False,
+        ws_config="config/ws_monitor.yaml",
+        ws_daemon=False,
+        health_monitor=False,
+        health_config="config/health_monitor.yaml",
+        writing_monitor=False,
+        writing_config="config/writing_monitor.yaml",
+        run_scheduled=False,
+        schedule_config="config/monitor_schedule.yaml",
+        job_ids=None,
+        force_scheduled=False,
+        notify_success=False,
+        check_wecom=False,
+        send_wecom_test=False,
+    )
+
+
 def _parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(
         description="§2.1 定时任务监控（mdimonitor/test_quotes_es 逻辑，仅 ELK）",
@@ -64,6 +102,52 @@ def _parse_args() -> argparse.Namespace:
         default="config/health_monitor.yaml",
         help="Health API 监控配置",
     )
+    p.add_argument(
+        "--writing-monitor",
+        action="store_true",
+        help="自动化写稿任务验证（见 config/writing_monitor.yaml）",
+    )
+    p.add_argument(
+        "--writing-config",
+        default="config/writing_monitor.yaml",
+        help="写稿监测配置",
+    )
+    p.add_argument(
+        "--run-scheduled",
+        action="store_true",
+        help="按 config/monitor_schedule.yaml 执行到期监控（HTTP / WS / ELK）",
+    )
+    p.add_argument(
+        "--schedule-config",
+        default="config/monitor_schedule.yaml",
+        help="统一调度配置",
+    )
+    p.add_argument(
+        "--job",
+        action="append",
+        dest="job_ids",
+        help="仅运行指定 job（health / ws / elk / writing），可重复",
+    )
+    p.add_argument(
+        "--force-scheduled",
+        action="store_true",
+        help="忽略时刻表，运行所有已启用的 job（配合 --job 可只跑部分）",
+    )
+    p.add_argument(
+        "--notify-success",
+        action="store_true",
+        help="（可选）每轮全部 job 成功时发 ELK 企微汇总；受 notify_success_until 约束",
+    )
+    p.add_argument(
+        "--check-wecom",
+        action="store_true",
+        help="检查各 channel 的企微 webhook 是否已配置",
+    )
+    p.add_argument(
+        "--send-wecom-test",
+        action="store_true",
+        help="配合 --check-wecom，向已配置的机器人发送测试消息",
+    )
     return p.parse_args()
 
 
@@ -78,11 +162,49 @@ def _resolve_now(cfg_tz: str, at: str | None) -> datetime:
 
 
 def run_monitor(args: argparse.Namespace) -> int:
+    if args.check_wecom:
+        from .env_file import load_all_monitor_env_files
+        from .wecom_diag import run_check_wecom
+
+        load_all_monitor_env_files()
+        return run_check_wecom(
+            send_test=args.send_wecom_test,
+            as_json=args.json,
+        )
+
+    if args.run_scheduled:
+        from .schedule_runner import run_scheduled_monitors
+
+        job_filter = set(args.job_ids or []) or None
+        return run_scheduled_monitors(
+            Path(args.schedule_config),
+            at=args.at,
+            as_json=args.json,
+            dry_run=args.dry_run,
+            notify=args.notify,
+            no_notify=args.no_notify,
+            job_filter=job_filter,
+            force=args.force_scheduled,
+            notify_success=args.notify_success,
+        )
+
     if args.health_monitor:
         from .health_main import run_health_monitor
 
         return run_health_monitor(
             Path(args.health_config),
+            at=args.at,
+            as_json=args.json,
+            dry_run=args.dry_run,
+            notify=args.notify,
+            no_notify=args.no_notify,
+        )
+
+    if args.writing_monitor:
+        from .writing_main import run_writing_monitor
+
+        return run_writing_monitor(
+            Path(args.writing_config),
             at=args.at,
             as_json=args.json,
             dry_run=args.dry_run,

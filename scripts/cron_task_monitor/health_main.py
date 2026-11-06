@@ -23,7 +23,7 @@ def run_health_monitor(
     no_notify: bool,
 ) -> int:
     repo_root = find_repo_root(config_path)
-    load_health_monitor_env_files(repo_root)
+    load_health_monitor_env_files(repo_root=repo_root)
 
     if not config_path.is_file():
         config_path = repo_root / config_path

@@ -1,7 +1,7 @@
 # §2.1 定时任务监控清单（与运维 PDF 对齐，2026 版任务时间）
 timezone: Asia/Shanghai
 
-# 任务计划：每天 00:00–05:00 每 15 分钟执行脚本（见 config/schedule.example.cron）
+# 业务任务计划时刻见下方 tasks[]；统一调度在 0–5 点按各任务监控窗触发 ELK（见 monitor_schedule.production.yaml）
 monitor_mode: elk
 query_time_mode: rolling_in_batch
 schedule:
@@ -25,7 +25,7 @@ wecom:
   webhook_env: WECOM_WEBHOOK_URL_ELK
 
 elasticsearch:
-  url: http://dcelk.sfccn.com:9200
+  url: http://43.139.37.118:9200
   username: quotemonitor
   message_field: msg
   # query_time_mode=batch_window 时以下两项忽略；改为 elastic 模式时生效
@@ -38,7 +38,7 @@ elasticsearch:
 
 tasks:
   # --- logstash-sync-mongo-* / 124.220.0.191 ---
-  - id: CBD_PUB_BOARD_INFO
+  - id: CBD_PUB_BOAR_INFO
     name: 主题成分股
     scheduled_start: "01:00"
     expected_end: "01:03"
@@ -47,7 +47,7 @@ tasks:
     log_dir: "/data/zxt/sync-mongo/logs"
     notify: 阳祥风
 
-  - id: CBD_BOARD_INFO
+  - id: CBD_BOAR_INFO
     name: 主题
     scheduled_start: "01:00"
     expected_end: "01:05"
@@ -95,8 +95,8 @@ tasks:
 
   - id: NC_LISTSTOCK_GLANCE
     name: 上市股票一览表
-    scheduled_start: "00:00"
-    expected_end: "00:05"
+    scheduled_start: "01:00"
+    expected_end: "02:00"
     log_index_pattern: "logstash-zxt-terminal-task-*"
     server: "172.30.176.135"
     log_dir: "/usr/local/zxt/task/logs"

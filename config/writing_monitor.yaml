@@ -1,0 +1,6 @@
+# 自动化写稿监测（任务时刻见 scripts/automated_writing/verify/tasks.py）
+timezone: Asia/Shanghai
+# 每个任务：到点 check_time 后 delay 分钟，在 slot 分钟内执行一次（与 dispatcher 5 分钟对齐）
+execution_delay_minutes: 10
+execution_slot_minutes: 5
+active_end: "20:30"

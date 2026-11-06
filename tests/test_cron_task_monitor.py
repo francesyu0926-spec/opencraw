@@ -22,7 +22,7 @@ class CronTaskMonitorTests(unittest.TestCase):
 
     def test_structured_log_success(self) -> None:
         task = TaskDefinition(
-            id="CBD_PUB_BOARD_INFO",
+            id="CBD_PUB_BOAR_INFO",
             name="主题成分股",
             scheduled_start="01:00",
             expected_end="01:03",
@@ -42,7 +42,7 @@ class CronTaskMonitorTests(unittest.TestCase):
 
     def test_late_start_alert(self) -> None:
         task = TaskDefinition(
-            id="CBD_BOARD_INFO",
+            id="CBD_BOAR_INFO",
             name="主题",
             scheduled_start="01:00",
             expected_end="01:05",
@@ -51,8 +51,8 @@ class CronTaskMonitorTests(unittest.TestCase):
             log_dir="/tmp",
         )
         lines = [
-            "2025-11-03 01:07:00 [TASK_MONITOR] task=CBD_BOARD_INFO event=start ts=2025-11-03T01:07:00+08:00",
-            "2025-11-03 01:08:00 [TASK_MONITOR] task=CBD_BOARD_INFO event=end status=success ts=2025-11-03T01:08:00+08:00",
+            "2025-11-03 01:07:00 [TASK_MONITOR] task=CBD_BOAR_INFO event=start ts=2025-11-03T01:07:00+08:00",
+            "2025-11-03 01:08:00 [TASK_MONITOR] task=CBD_BOAR_INFO event=end status=success ts=2025-11-03T01:08:00+08:00",
         ]
         record = parse_lines_for_task(task, lines, self.tz, self.cfg.monitor_log_prefix)
         now = datetime(2025, 11, 3, 1, 8, tzinfo=self.tz)
@@ -73,7 +73,7 @@ class CronTaskMonitorTests(unittest.TestCase):
             log_dir = Path(tmp)
             (log_dir / "sync.log").write_text(fixture.read_text(encoding="utf-8"), encoding="utf-8")
             task = TaskDefinition(
-                id="CBD_PUB_BOARD_INFO",
+                id="CBD_PUB_BOAR_INFO",
                 name="主题成分股",
                 scheduled_start="01:00",
                 expected_end="01:03",

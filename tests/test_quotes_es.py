@@ -20,7 +20,7 @@ from scripts.cron_task_monitor.quotes_es import build_mdimonitor_query
 
 class TestQuotesEsQuery(unittest.TestCase):
     def test_query_fixture_shape(self) -> None:
-        keywords = ["CBD_QUOT_CBND_STK", "CBD_PUB_BOARD_INFO"]
+        keywords = ["CBD_QUOT_CBND_STK", "CBD_PUB_BOAR_INFO"]
         body = build_mdimonitor_query(keywords)
         bool_q = body["query"]["bool"]
         self.assertEqual(len(bool_q["should"]), 2)
