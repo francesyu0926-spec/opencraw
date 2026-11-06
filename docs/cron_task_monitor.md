@@ -2,16 +2,24 @@
 
 ## 生产调度（推荐）
 
-时刻表见 `config/monitor_schedule.production.yaml`，入口 **`scripts/run_monitor_production.ps1`** / **`run_monitor_production.sh`**：
+时刻表见 `config/monitor_schedule.production.yaml`，入口 **`scripts/run_monitor_production.ps1`** / **`run_monitor_production.sh`**。
 
-| Job | 频率 | 运行窗口 |
-|-----|------|----------|
-| `elk` | 每 **15** 分钟 | **00:00–05:00**（数据同步定时任务） |
-| `ws` | 每 **10** 分钟 | **09:00–15:30**（模拟客户端探活） |
-| `health` | 每 **15** 分钟 | **09:00–23:39** |
-| `writing` | **到点后 10 分钟执行 1 次**（5 分钟墙钟对齐） | 见 `tasks.py` + `writing_monitor.yaml` |
+**调度器**：**每 5 分钟**触发一轮（墙钟 :00/:05/:10…）。各 job 是否执行见下表（非简单「每 N 分钟扫全表」）。
 
-任务计划 / cron：**每 5 分钟**触发调度器（WS 10 分钟 / health·elk 15 分钟 / writing 5 分钟到期才执行）。
+| Job | 何时执行 | 运行窗口 / 说明 |
+|-----|----------|-----------------|
+| `elk` | **有 ELK 子任务处于监控窗** 且命中 5 分钟 tick | **00:00–05:00**；子任务时刻见 `config/cron_tasks.yaml`（计划开始～预期结束+10 分钟） |
+| `ws` | 每 **10** 分钟 tick | **09:00–15:30**（08:30–09:00 跳过，见 `ws_monitor.yaml`） |
+| `health` | 每 **15** 分钟 tick | **09:00–23:39** |
+| `writing` | **有写稿子任务处于「到点+10min」单次 5min 时段** 且命中 5 分钟 tick | **07:00–20:30**；7 项到点见 `scripts/automated_writing/verify/tasks.py`，`writing_monitor.yaml` |
+
+**企微（生产 YAML）**：
+
+- **`notify_success_until: 2026-11-30`**：此日期后**成功**不发企微（失败仍发）。
+- **`notify_success_trial`**：**health / ws** 整点 **:00** 发 Markdown 巡检（长期；12/1 起整点**仅失败**）。
+- **`notify_on_run_complete`**：**elk / writing** 每次**实际跑完**发 Markdown（12/1 起**仅失败**）。
+
+查看完整时刻：`python scripts/print_schedule.py`。
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File scripts\run_monitor_production.ps1 -Json
@@ -34,7 +42,7 @@ python -m scripts.cron_task_monitor --run-scheduled \
 
 ### 自动化写稿（writing）
 
-代码来自 `scripts/automated_writing/`（`verify run --due`）。配置 **`config/writing.env`**：`SFC_ADMIN_CODE` / `SFC_ADMIN_PASSWORD`（与 automated_writing 一致），企微用 **`SFC_WECHAT_WEBHOOK_URL`** 或 **`wecom.env`** 中的 **`WECOM_WEBHOOK_URL_WRITING`**。
+代码来自 `scripts/automated_writing/`（生产调度为 `verify run --window`：到点后 **10 分钟**、**5 分钟墙钟对齐**执行 **1 次**）。配置 **`config/writing.env`**：`SFC_ADMIN_CODE` / `SFC_ADMIN_PASSWORD`（与 automated_writing 一致），企微用 **`SFC_WECHAT_WEBHOOK_URL`** 或 **`wecom.env`** 中的 **`WECOM_WEBHOOK_URL_WRITING`**。
 
 ```powershell
 python -m scripts.cron_task_monitor --writing-monitor --json
@@ -80,7 +88,7 @@ python -m scripts.cron_task_monitor --json
 1. **能否成功建立连接**（`connect_timeout_seconds`）
 2. **能否维持连接 > 30 秒**（`hold_seconds`，计时结束后 **主动 `close`**，避免长连占资源）
 3. **能否正确收发消息**：发送订阅 JSON → 至少收到 1 条推送，且含 **`quoteItems`**（视为业务行情消息正常；失败即告警）
-4. **失败则告警**（仅失败）：`--ws-monitor` / 统一调度走 **`WECOM_WEBHOOK_URL_WS`**；成功不发企微
+4. **企微**：非整点**仅失败**告警；整点 **:00** 巡检见上文 **`notify_success_trial`**（`WECOM_WEBHOOK_URL_WS`）
 
 ```powershell
 pip install websockets
@@ -120,9 +128,7 @@ Windows 计划任务可直接跑 `scripts/run_health_monitor.ps1`（同样会加
 
 ## 告警与企业微信（三个机器人）
 
-**默认策略：仅失败告警。** 成功时不发企微；失败且已配置 webhook 时推送。
-
-**health / ws**：整点 **:00** 巡检**长期开启**；**至 `2026-11-30`（含）**成功/失败均发，**之后整点仅失败**发。**ELK / writing**：每次跑完发 Markdown，成功通知同样受 `notify_success_until` 约束。其它 job 非整点仍仅失败告警。
+**失败**且已配置 webhook 时必告警。**成功**是否发企微由 `monitor_schedule.production.yaml` 中 **`notify_success_until` / `notify_success_trial` / `notify_on_run_complete`** 控制（见上文「生产调度」）。非整点、非上述策略时，**health / ws / elk** 单独跑仍默认**仅失败**发内置告警。
 
 | 监控 | 环境变量 | 配置 |
 |------|----------|------|

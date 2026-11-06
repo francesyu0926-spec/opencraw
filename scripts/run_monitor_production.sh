@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # 生产监控调度（config/monitor_schedule.production.yaml）
 # cron 示例：*/5 * * * * /opt/opencraw/scripts/run_monitor_production.sh
-# 至 2026-11-11：整点 (:00) 已执行 job 发企微巡检（成/败均发）
+# 企微策略见 monitor_schedule.production.yaml（health/ws 整点；elk/writing 跑完；success_until）
 set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$REPO_ROOT"

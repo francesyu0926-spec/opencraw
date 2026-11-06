@@ -136,7 +136,7 @@ def _parse_args() -> argparse.Namespace:
     p.add_argument(
         "--notify-success",
         action="store_true",
-        help="（可选）每轮全部 job 成功时发 ELK 企微汇总；整点成功见 monitor_schedule notify_success_trial",
+        help="（可选）每轮全部 job 成功时发 ELK 企微汇总；受 notify_success_until 约束",
     )
     p.add_argument(
         "--check-wecom",

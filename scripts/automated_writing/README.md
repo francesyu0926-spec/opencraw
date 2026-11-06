@@ -6,4 +6,4 @@
 python -m scripts.cron_task_monitor --writing-monitor --json
 ```
 
-环境变量见 `config/writing.env.example`。任务时刻见 `verify/tasks.py`（工作日 7:30–20:00 共 7 项）。
+环境变量见 `config/writing.env.example`。任务到点见 `verify/tasks.py`；生产调度为 **到点 +10 分钟** 执行 **1 次**（`verify run --window`，见 `config/writing_monitor.yaml`）。

@@ -1,7 +1,7 @@
 # §2.1 定时任务监控清单（与运维 PDF 对齐，2026 版任务时间）
 timezone: Asia/Shanghai
 
-# 任务计划：每天 00:00–05:00 每 15 分钟执行脚本（见 config/schedule.example.cron）
+# 业务任务计划时刻见下方 tasks[]；统一调度在 0–5 点按各任务监控窗触发 ELK（见 monitor_schedule.production.yaml）
 monitor_mode: elk
 query_time_mode: rolling_in_batch
 schedule:

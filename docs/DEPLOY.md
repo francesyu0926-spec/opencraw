@@ -96,7 +96,7 @@ crontab -e
 2. 操作：`powershell.exe -ExecutionPolicy Bypass -File D:\path\to\opencraw\scripts\run_scheduled_monitors.ps1 -Json`
 3. 密钥已通过 `config/*.env` 加载，无需在任务里写密码
 
-调度说明见 `config/monitor_schedule.yaml`（health 5 分钟 / ws 10 分钟 / elk 00:00–05:00 每 15 分钟）。
+生产调度见 **`config/monitor_schedule.production.yaml`**（Docker 默认）；说明见 [cron_task_monitor.md](./cron_task_monitor.md) 或 `python scripts/print_schedule.py`。
 
 ## 5. 方式 B：Docker 部署
 
@@ -117,7 +117,7 @@ docker compose logs -f
 - 读取 `config/elk.env`、`health.env`、`wecom.env`、`writing.env`
 - 挂载 `./config/health.token.cache.json` 持久化登录 JWT（默认 12 小时）
 - 每 **300 秒（5 分钟）** 执行 `--run-scheduled --json`，与 `dispatcher_interval_minutes: 5` 一致  
-- **失败**必告警；**至 2026-11-11** **整点**对已执行 job 另发巡检企微（成/败均发，`notify_success_trial`）
+- **失败**必告警；企微成功/整点/跑完策略见 `monitor_schedule.production.yaml`（`notify_success_until`、`notify_success_trial`、`notify_on_run_complete`）
 
 停止：`docker compose down`
 

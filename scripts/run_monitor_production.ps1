@@ -1,11 +1,9 @@
 ﻿# 生产监控调度（见 config/monitor_schedule.production.yaml）
-# - 00:00–05:00  ELK 数据同步，每 15 分钟
-# - 09:00–15:30  WebSocket，每 10 分钟
-# - 09:00–23:39  HTTP health，每 15 分钟
-# - 07:00–20:30  自动化写稿验证，每 5 分钟（到期任务才执行 verify run --due）
+# 调度器每 5 分钟；elk/写稿按子任务窗口触发，ws 10min，health 15min。
+# 企微：notify_success_until / notify_success_trial(health,ws 整点) / notify_on_run_complete(elk,writing)
+# 详见 docs/cron_task_monitor.md 或 python scripts/print_schedule.py
 #
-# 任务计划：每天重复，间隔 5 分钟触发调度器（见 dispatcher_interval_minutes）。
-# 至 2026-11-11：整点 (:00) 已执行的 job 发企微巡检（成/败均发，notify_success_trial）。
+# 任务计划：每天重复，间隔 5 分钟触发调度器（dispatcher_interval_minutes: 5）。
 # 程序：powershell.exe -ExecutionPolicy Bypass -File scripts\run_monitor_production.ps1
 
 param(

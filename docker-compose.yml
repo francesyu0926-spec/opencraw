@@ -1,6 +1,6 @@
 # opencraw 统一监控
 # 使用前：在 config/ 下准备好 elk.env、health.env、wecom.env、writing.env（勿提交 Git）
-# 整点成功企微（临时约 7 天）：monitor_schedule.production.yaml → notify_success_trial
+# 企微：monitor_schedule.production.yaml → notify_success_trial / notify_on_run_complete / notify_success_until
 #
 #   docker compose up -d --build
 #   docker compose logs -f

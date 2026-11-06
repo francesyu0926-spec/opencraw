@@ -48,7 +48,7 @@ jobs:
 
   writing:
     enabled: true
-    description: 自动化写稿（按 tasks.py 各任务到点窗口触发，见 writing_monitor.yaml grace）
+    description: 自动化写稿（到点+10min 单次执行，见 tasks.py / writing_monitor.yaml）
     interval_minutes: 5
     active_start: "07:00"
     active_end: "20:30"
