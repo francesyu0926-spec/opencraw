@@ -31,9 +31,8 @@ def build_alert_content(results: Iterable[CheckResult], source: str = "run") -> 
     status = "失败" if first.status == CheckStatus.FAILED else "错误"
     note = f"{first.task} [{status}]：{first.message}"
     return (
-        f"### 终端接口监控测试报告\n"
+        f"### 自动化写稿监控测试报告\n"
         f"> 时间：{checked_at}\n"
-        f"> 监控项：自动化写稿\n"
         f"\n"
         f'结论：<font color="warning">未通过</font>\n'
         f"> 说明：{note}"

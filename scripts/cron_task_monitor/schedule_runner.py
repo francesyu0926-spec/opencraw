@@ -434,7 +434,6 @@ def run_scheduled_monitors(
             and cfg.notify_success_trial.heartbeat_if_no_jobs
         ):
             body = monitor_report_markdown(
-                title="终端接口监控测试报告",
                 checked_at=end_now.strftime("%Y-%m-%d %H:%M:%S"),
                 passed=True,
                 monitor_item="统一调度",

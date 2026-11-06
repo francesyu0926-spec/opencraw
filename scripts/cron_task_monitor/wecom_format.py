@@ -8,25 +8,32 @@ JOB_LABELS: dict[str, str] = {
 }
 
 
+def monitor_report_title(monitor_item: str = "") -> str:
+    """Report heading: 「{监控项}监控测试报告」；无监控项时用通用标题。"""
+    item = monitor_item.strip()
+    if not item:
+        return "终端接口监控测试报告"
+    return f"{item}监控测试报告"
+
+
 def monitor_report_markdown(
     *,
-    title: str = "终端接口监控测试报告",
     checked_at: str,
     passed: bool,
     monitor_item: str = "",
     note: str = "",
+    title: str | None = None,
 ) -> str:
+    heading = title if title is not None else monitor_report_title(monitor_item)
     verdict = (
         '<font color="info">通过</font>'
         if passed
         else '<font color="warning">未通过</font>'
     )
     lines = [
-        f"### {title}",
+        f"### {heading}",
         f"> 时间：{checked_at}",
     ]
-    if monitor_item.strip():
-        lines.append(f"> 监控项：{monitor_item.strip()}")
     lines.extend(["", f"结论：{verdict}"])
     if note.strip():
         lines.append(f"> 说明：{note.strip()}")

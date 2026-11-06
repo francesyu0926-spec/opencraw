@@ -22,8 +22,9 @@ def test_hourly_report_markdown_failure_without_counts() -> None:
         },
         now,
     )
-    assert "### 终端接口监控测试报告" in text
+    assert "### 行情 HTTP 探活监控测试报告" in text
     assert "> 时间：2026-11-04 19:00:00" in text
+    assert "监控项" not in text
     assert "未通过" in text
     assert "根路径不可用" in text
     assert "check_count" not in text
@@ -37,5 +38,7 @@ def test_hourly_report_markdown_success() -> None:
         {"exit_code": 0, "description": "ELK", "detail": {"hit_count": 99}},
         now,
     )
+    assert "### ELK 数据同步监控测试报告" in text
     assert "通过" in text
+    assert "监控项" not in text
     assert "hit_count" not in text
