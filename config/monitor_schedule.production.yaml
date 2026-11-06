@@ -4,12 +4,22 @@ timezone: Asia/Shanghai
 
 dispatcher_interval_minutes: 5
 
-# 临时（约 7 天）：整点（:00）对本轮已执行的 job 发企微（成功或失败均发）
+# 此日期后：整点 health/ws、ELK/写稿跑完 — 成功均不发企微；失败仍发
+notify_success_until: "2026-11-30"
+
+# 整点（:00）对 health / ws 发企微（长期；12/1 起仅失败）
 notify_success_trial:
   enabled: true
   on_hour_only: true
-  until: "2026-11-11"
   heartbeat_if_no_jobs: true
+  jobs:
+    - health
+    - ws
+
+# ELK / 写稿：每次执行完发企微 Markdown（成功或失败均发，见 schedule_runner）
+notify_on_run_complete:
+  - elk
+  - writing
 
 jobs:
   elk:

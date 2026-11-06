@@ -9,12 +9,13 @@ import yaml
 
 @dataclass(frozen=True)
 class NotifySuccessTrial:
-    """Temporary policy: on the hour, WeCom report per job (success or failure)."""
+    """On the hour, WeCom report per listed job (success or failure)."""
 
     enabled: bool = False
     on_hour_only: bool = True
     until: str | None = None  # YYYY-MM-DD in schedule timezone (inclusive)
     heartbeat_if_no_jobs: bool = True
+    jobs: tuple[str, ...] = ()  # empty = all jobs (legacy)
 
 
 @dataclass(frozen=True)
@@ -34,6 +35,8 @@ class MonitorScheduleConfig:
     dispatcher_interval_minutes: int
     jobs: dict[str, ScheduledJob]
     notify_success_trial: NotifySuccessTrial | None = None
+    notify_on_run_complete: tuple[str, ...] = ()
+    notify_success_until: str | None = None  # YYYY-MM-DD inclusive; after: no success WeCom
 
 
 def _parse_notify_success_trial(data: dict) -> NotifySuccessTrial | None:
@@ -41,12 +44,24 @@ def _parse_notify_success_trial(data: dict) -> NotifySuccessTrial | None:
     if not isinstance(raw, dict):
         return None
     until = raw.get("until")
+    jobs_raw = raw.get("jobs")
+    jobs: tuple[str, ...] = ()
+    if isinstance(jobs_raw, list):
+        jobs = tuple(str(j).strip() for j in jobs_raw if str(j).strip())
     return NotifySuccessTrial(
         enabled=bool(raw.get("enabled", False)),
         on_hour_only=bool(raw.get("on_hour_only", True)),
         until=str(until).strip() if until else None,
         heartbeat_if_no_jobs=bool(raw.get("heartbeat_if_no_jobs", True)),
+        jobs=jobs,
     )
+
+
+def _parse_notify_on_run_complete(data: dict) -> tuple[str, ...]:
+    raw = data.get("notify_on_run_complete")
+    if not isinstance(raw, list):
+        return ()
+    return tuple(str(j).strip() for j in raw if str(j).strip())
 
 
 def is_on_hour_tick(now: datetime, *, grace_seconds: int = 45) -> bool:
@@ -55,6 +70,24 @@ def is_on_hour_tick(now: datetime, *, grace_seconds: int = 45) -> bool:
         return True
     secs_to_next_hour = (60 - now.minute) * 60 - now.second
     return 0 < secs_to_next_hour <= grace_seconds
+
+
+def _until_date(until: str | None) -> date | None:
+    if not until:
+        return None
+    try:
+        return date.fromisoformat(until.strip())
+    except ValueError:
+        return None
+
+
+def success_wecom_allowed(now: datetime, cfg: MonitorScheduleConfig) -> bool:
+    """Whether success outcomes may trigger WeCom (failures always allowed)."""
+    until = cfg.notify_success_until
+    end = _until_date(until)
+    if end is None:
+        return True
+    return now.date() <= end
 
 
 def notify_success_trial_active(
@@ -102,6 +135,10 @@ def load_monitor_schedule(path: str | Path) -> MonitorScheduleConfig:
         )
 
     tz_name = str(data.get("timezone") or "Asia/Shanghai").strip()
+    until_raw = data.get("notify_success_until")
+    notify_success_until = (
+        str(until_raw).strip() if until_raw is not None and str(until_raw).strip() else None
+    )
     return MonitorScheduleConfig(
         timezone=tz_name,
         dispatcher_interval_minutes=max(
@@ -109,4 +146,6 @@ def load_monitor_schedule(path: str | Path) -> MonitorScheduleConfig:
         ),
         jobs=jobs,
         notify_success_trial=_parse_notify_success_trial(data),
+        notify_on_run_complete=_parse_notify_on_run_complete(data),
+        notify_success_until=notify_success_until,
     )

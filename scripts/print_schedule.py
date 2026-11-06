@@ -28,9 +28,19 @@ def main() -> None:
     )
     trial = prod.get("notify_success_trial") or {}
     if trial.get("enabled"):
+        tjobs = trial.get("jobs") or "全部 job"
+        trial_until = trial.get("until") or "长期"
         print(
-            f"企微整点试用: 每整点 :00，至 {trial.get('until')} "
-            "（本轮已跑 job 成功/失败均发；无 job 时心跳）"
+            f"企微整点: 每 :00，{trial_until}，job={tjobs} "
+            "（成功/失败均发；无 job 时 health 通道心跳）"
+        )
+    on_run = prod.get("notify_on_run_complete") or []
+    if on_run:
+        print(f"企微每次执行完: {', '.join(on_run)}（失败必发；成功受 notify_success_until 约束）")
+    until_all = prod.get("notify_success_until")
+    if until_all:
+        print(
+            f"成功企微截止: {until_all}（之后 health/ws 整点与 ELK/写稿跑完均仅失败发）"
         )
     print()
 

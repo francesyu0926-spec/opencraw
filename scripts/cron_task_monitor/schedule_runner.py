@@ -20,6 +20,7 @@ from .schedule_config import (
     ScheduledJob,
     load_monitor_schedule,
     notify_success_trial_active,
+    success_wecom_allowed,
 )
 
 _JOB_NOTIFY_CHANNEL: dict[str, str] = {
@@ -42,18 +43,31 @@ def _job_hourly_report_message(job_id: str, info: dict, now: datetime) -> str:
     )
 
 
-def _notify_trial_hourly_reports(
+def _run_result_skipped(info: dict) -> bool:
+    detail = info.get("detail")
+    if isinstance(detail, dict) and detail.get("skipped"):
+        return True
+    return bool(info.get("skipped"))
+
+
+def _notify_job_run_reports(
     results: dict[str, dict],
     *,
     now: datetime,
     no_notify: bool,
     dry_run: bool,
+    allow_success: bool = True,
 ) -> dict[str, dict]:
-    """整点向各 job 对应企微发送本轮结果（成功或失败均发送）。"""
+    """向各 job 对应企微发送执行结果；allow_success=False 时仅失败发送。"""
     if no_notify or dry_run or not results:
         return {}
     out: dict[str, dict] = {}
     for job_id, info in results.items():
+        if _run_result_skipped(info):
+            continue
+        passed = int(info.get("exit_code", 1)) == 0
+        if passed and not allow_success:
+            continue
         channel = _JOB_NOTIFY_CHANNEL.get(job_id, "elk")
         ok_send, msg = send_markdown_message(
             _job_hourly_report_message(job_id, info, now),
@@ -67,10 +81,33 @@ def _notify_trial_hourly_reports(
         }
         if not ok_send:
             print(
-                f"WARN: 整点企微发送失败 job={job_id} channel={channel}: {msg}",
+                f"WARN: 企微发送失败 job={job_id} channel={channel}: {msg}",
                 file=sys.stderr,
             )
     return out
+
+
+def _notify_trial_hourly_reports(
+    results: dict[str, dict],
+    *,
+    now: datetime,
+    no_notify: bool,
+    dry_run: bool,
+    job_ids: tuple[str, ...],
+    allow_success: bool = True,
+) -> dict[str, dict]:
+    """整点向指定 job 发送本轮结果。"""
+    if not job_ids:
+        filtered = results
+    else:
+        filtered = {k: v for k, v in results.items() if k in job_ids}
+    return _notify_job_run_reports(
+        filtered,
+        now=now,
+        no_notify=no_notify,
+        dry_run=dry_run,
+        allow_success=allow_success,
+    )
 
 
 def _parse_hhmm(value: str) -> time:
@@ -130,6 +167,7 @@ def _run_single_job(
     no_notify: bool,
     elk_force_all_tasks: bool = False,
     writing_force_all: bool = False,
+    suppress_job_wecom: bool = False,
 ) -> tuple[int, str | None]:
     config_path = Path(job.config)
     if job.id == "health":
@@ -150,7 +188,8 @@ def _run_single_job(
                 as_json=bool(kwargs.get("as_json", False)),
                 dry_run=bool(kwargs.get("dry_run", False)),
                 notify=bool(kwargs.get("notify", False)),
-                no_notify=bool(kwargs.get("no_notify", False)),
+                no_notify=bool(kwargs.get("no_notify", False))
+                or bool(kwargs.get("suppress_job_wecom", False)),
                 writing_use_window=not kwargs.get("writing_force_all", False),
                 writing_force_all=bool(kwargs.get("writing_force_all", False)),
             )
@@ -192,7 +231,8 @@ def _run_single_job(
                 as_json=bool(kwargs.get("as_json", False)),
                 dry_run=bool(kwargs.get("dry_run", False)),
                 notify=bool(kwargs.get("notify", False)),
-                no_notify=bool(kwargs.get("no_notify", False)),
+                no_notify=bool(kwargs.get("no_notify", False))
+                or bool(kwargs.get("suppress_job_wecom", False)),
                 task_ids=task_ids,
             )
             return monitor_main.run_monitor(args)
@@ -215,6 +255,7 @@ def _run_single_job(
                 no_notify=no_notify,
                 elk_force_all_tasks=elk_force_all_tasks,
                 writing_force_all=writing_force_all,
+                suppress_job_wecom=suppress_job_wecom,
             )
         return code, buf.getvalue().strip() or None
 
@@ -227,6 +268,7 @@ def _run_single_job(
         no_notify=no_notify,
         elk_force_all_tasks=elk_force_all_tasks,
         writing_force_all=writing_force_all,
+        suppress_job_wecom=suppress_job_wecom,
     )
     return code, None
 
@@ -273,6 +315,10 @@ def run_scheduled_monitors(
     results: dict[str, dict] = {}
     skipped: list[dict[str, str]] = []
     exit_code = 0
+    notify_on_run = set(cfg.notify_on_run_complete)
+    trial_job_ids: tuple[str, ...] = ()
+    if cfg.notify_success_trial and cfg.notify_success_trial.jobs:
+        trial_job_ids = cfg.notify_success_trial.jobs
 
     for job_id, job in cfg.jobs.items():
         if job_filter and job_id not in job_filter:
@@ -316,6 +362,7 @@ def run_scheduled_monitors(
             no_notify=no_notify,
             elk_force_all_tasks=force and job_id == "elk",
             writing_force_all=force and job_id == "writing",
+            suppress_job_wecom=job_id in notify_on_run,
         )
         entry: dict = {"exit_code": code, "description": job.description}
         if captured:
@@ -327,9 +374,27 @@ def run_scheduled_monitors(
         if code != 0:
             exit_code = max(exit_code, code if code > 0 else 1)
 
+        if (
+            job_id in notify_on_run
+            and not no_notify
+            and not dry_run
+            and not _run_result_skipped(entry)
+        ):
+            end_stamp = datetime.now(tz) if at is None else now
+            run_notifies = _notify_job_run_reports(
+                {job_id: entry},
+                now=end_stamp,
+                no_notify=no_notify,
+                dry_run=dry_run,
+                allow_success=allow_success_wecom,
+            )
+            if run_notifies.get(job_id):
+                entry["wecom_run_notify"] = run_notifies[job_id]
+
     success_notify_ok: bool | None = None
     success_notify_msg = ""
     end_now = datetime.now(tz) if at is None else now
+    allow_success_wecom = success_wecom_allowed(end_now, cfg)
     trial_hourly_active = notify_success_trial_active(
         end_now, cfg.notify_success_trial
     ) or notify_success_trial_active(now, cfg.notify_success_trial)
@@ -351,15 +416,23 @@ def run_scheduled_monitors(
     if trial_hourly_active and not no_notify and not dry_run:
         warn_missing_webhooks()
     if trial_hourly_active:
-        if results:
+        hourly_targets = {
+            k: v
+            for k, v in results.items()
+            if not trial_job_ids or k in trial_job_ids
+        }
+        if hourly_targets:
             job_hourly_notifies = _notify_trial_hourly_reports(
-                results,
+                hourly_targets,
                 now=end_now,
                 no_notify=no_notify,
                 dry_run=dry_run,
+                job_ids=trial_job_ids,
+                allow_success=allow_success_wecom,
             )
         elif (
-            not no_notify
+            allow_success_wecom
+            and not no_notify
             and not dry_run
             and cfg.notify_success_trial
             and cfg.notify_success_trial.heartbeat_if_no_jobs
@@ -369,10 +442,10 @@ def run_scheduled_monitors(
                 checked_at=end_now.strftime("%Y-%m-%d %H:%M:%S"),
                 passed=True,
                 monitor_item="统一调度",
-                note="本轮无到期任务，调度器正常",
+                note="本轮无到期 health/ws 任务，调度器正常",
             )
-            ok, msg = send_markdown_message(body, channel="elk")
-            hourly_heartbeat = {"ok": ok, "message": msg, "channel": "elk"}
+            ok, msg = send_markdown_message(body, channel="health")
+            hourly_heartbeat = {"ok": ok, "message": msg, "channel": "health"}
             trial_skip_reason = None
 
     all_run_ok = bool(results) and all(
@@ -380,6 +453,7 @@ def run_scheduled_monitors(
     )
     if (
         notify_success
+        and allow_success_wecom
         and not trial_hourly_active
         and not no_notify
         and not dry_run
@@ -414,8 +488,14 @@ def run_scheduled_monitors(
             payload["wecom_success_message"] = success_notify_msg
         if job_hourly_notifies:
             payload["wecom_job_hourly_notifies"] = job_hourly_notifies
-            payload["wecom_job_success_notifies"] = job_hourly_notifies
             payload["notify_success_trial_hourly"] = True
+        run_complete = {
+            jid: info["wecom_run_notify"]
+            for jid, info in results.items()
+            if isinstance(info.get("wecom_run_notify"), dict)
+        }
+        if run_complete:
+            payload["wecom_job_run_notifies"] = run_complete
         if trial_skip_reason:
             payload["notify_success_trial_skipped"] = trial_skip_reason
         if hourly_heartbeat is not None:
