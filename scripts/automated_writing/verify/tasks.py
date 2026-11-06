@@ -1,7 +1,8 @@
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass
-from datetime import datetime, time
+from datetime import datetime, time, timedelta
 from enum import Enum
 from zoneinfo import ZoneInfo
 
@@ -34,7 +35,17 @@ TASKS: tuple[Task, ...] = (
 )
 
 
+DEFAULT_EXECUTION_DELAY_MINUTES = 10
+DEFAULT_EXECUTION_SLOT_MINUTES = 5
+
+
 def now() -> datetime:
+    override = os.environ.get("WRITING_MONITOR_AT", "").strip()
+    if override:
+        dt = datetime.fromisoformat(override.replace("Z", "+00:00"))
+        if dt.tzinfo is None:
+            return dt.replace(tzinfo=TZ)
+        return dt.astimezone(TZ)
     return datetime.now(TZ)
 
 
@@ -60,6 +71,104 @@ def is_due(task: Task, dt: datetime | None = None) -> bool:
         return False
     check_dt = datetime.combine(dt.date(), task.check_time, tzinfo=TZ)
     return dt >= check_dt
+
+
+def task_execution_slot(
+    task: Task,
+    dt: datetime | None = None,
+    *,
+    delay_minutes: int = DEFAULT_EXECUTION_DELAY_MINUTES,
+    slot_minutes: int = DEFAULT_EXECUTION_SLOT_MINUTES,
+    active_end: time | None = None,
+) -> tuple[datetime, datetime] | None:
+    """单次执行时段：[到点+delay, 到点+delay+slot)。非适用日或超出 active_end 返回 None。"""
+    dt = dt or now()
+    if not should_run_task(task, dt):
+        return None
+    start = datetime.combine(dt.date(), task.check_time, tzinfo=TZ) + timedelta(
+        minutes=max(0, delay_minutes)
+    )
+    if active_end is not None and start.time() > active_end:
+        return None
+    end = start + timedelta(minutes=max(1, slot_minutes))
+    if active_end is not None:
+        cap = datetime.combine(dt.date(), active_end, tzinfo=TZ)
+        if end > cap:
+            end = cap
+    if end <= start:
+        return None
+    return start, end
+
+
+def _execution_params_from_env() -> tuple[int, int, time | None]:
+    delay = int(
+        os.environ.get(
+            "WRITING_EXECUTION_DELAY_MINUTES", DEFAULT_EXECUTION_DELAY_MINUTES
+        )
+    )
+    slot = int(
+        os.environ.get(
+            "WRITING_EXECUTION_SLOT_MINUTES", DEFAULT_EXECUTION_SLOT_MINUTES
+        )
+    )
+    ae_raw = os.environ.get("WRITING_ACTIVE_END", "20:30").strip()
+    active_end = _parse_hhmm(ae_raw) if ae_raw else None
+    return delay, slot, active_end
+
+
+def _parse_hhmm(value: str) -> time:
+    hour, minute = (int(x) for x in value.strip().split(":", 1))
+    return time(hour, minute)
+
+
+def is_in_execution_slot(
+    task: Task,
+    dt: datetime | None = None,
+    *,
+    delay_minutes: int | None = None,
+    slot_minutes: int | None = None,
+    active_end: time | None = None,
+) -> bool:
+    """到点后 delay 分钟起，在单个 slot 内且命中 slot_minutes 墙钟对齐时执行一次。"""
+    env_delay, env_slot, env_end = _execution_params_from_env()
+    delay_minutes = env_delay if delay_minutes is None else delay_minutes
+    slot_minutes = env_slot if slot_minutes is None else slot_minutes
+    if active_end is None and os.environ.get("WRITING_ACTIVE_END") is not None:
+        active_end = env_end
+    elif active_end is None:
+        active_end = env_end
+    slot = task_execution_slot(
+        task,
+        dt,
+        delay_minutes=delay_minutes,
+        slot_minutes=slot_minutes,
+        active_end=active_end,
+    )
+    if slot is None:
+        return False
+    start, end = slot
+    ref = dt or now()
+    if ref < start or ref >= end:
+        return False
+    align = max(1, slot_minutes)
+    return ref.minute % align == 0
+
+
+# 兼容旧名
+def is_in_monitor_window(
+    task: Task,
+    dt: datetime | None = None,
+    *,
+    grace_minutes: int = DEFAULT_EXECUTION_DELAY_MINUTES,
+    active_end: time | None = None,
+) -> bool:
+    return is_in_execution_slot(
+        task,
+        dt,
+        delay_minutes=grace_minutes,
+        slot_minutes=DEFAULT_EXECUTION_SLOT_MINUTES,
+        active_end=active_end,
+    )
 
 
 def pending_message(task: Task) -> str:

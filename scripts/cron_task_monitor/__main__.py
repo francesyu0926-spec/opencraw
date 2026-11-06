@@ -26,11 +26,12 @@ def namespace_for_elk_run(
     dry_run: bool = False,
     notify: bool = False,
     no_notify: bool = False,
+    task_ids: list[str] | None = None,
 ) -> argparse.Namespace:
     """Minimal args for run_monitor() ELK path (used by schedule_runner)."""
     return argparse.Namespace(
         config=config,
-        task_ids=None,
+        task_ids=task_ids,
         at=at,
         json=as_json,
         dry_run=dry_run,

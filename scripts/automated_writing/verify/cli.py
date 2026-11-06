@@ -14,7 +14,17 @@ from verify.lock import acquire_daemon_lock
 from verify.logger import get_logger, log_section, log_task_result, setup_logging
 from verify.notify import notify_failure
 from verify.offline import run_mock_task, run_offline_tests
-from verify.tasks import TASKS, Task, get_task, is_due, now, pending_message, should_run_task, today_str
+from verify.tasks import (
+    TASKS,
+    Task,
+    get_task,
+    is_due,
+    is_in_execution_slot,
+    now,
+    pending_message,
+    should_run_task,
+    today_str,
+)
 
 
 def _format_time(value: datetime.time) -> str:
@@ -47,8 +57,16 @@ def _select_tasks(args: argparse.Namespace) -> list[Task]:
 def _prepare_task(task: Task, args: argparse.Namespace) -> CheckResult | None:
     if not should_run_task(task):
         return CheckResult(task.name, CheckStatus.SKIPPED, "非工作日，跳过监测")
-    if not args.force and not is_due(task):
-        return CheckResult(task.name, CheckStatus.SKIPPED, pending_message(task))
+    if not args.force:
+        if getattr(args, "window", False):
+            if not is_in_execution_slot(task):
+                return CheckResult(
+                    task.name,
+                    CheckStatus.SKIPPED,
+                    f"未到单次执行时段（监测 { _format_time(task.check_time)}，到点后 10 分钟）",
+                )
+        elif not is_due(task):
+            return CheckResult(task.name, CheckStatus.SKIPPED, pending_message(task))
     if args.skip_share and task.name == "早报推送":
         return CheckResult(
             task.name,
@@ -90,6 +108,9 @@ def cmd_run(args: argparse.Namespace) -> int:
     elif args.all:
         candidates = [task for task in tasks if should_run_task(task)]
         logger.info("执行模式: 全部适用任务 (%d 项)", len(candidates))
+    elif getattr(args, "window", False):
+        candidates = [task for task in tasks if is_in_execution_slot(task)]
+        logger.info("执行模式: 到点后单次执行时段 (%d 项)", len(candidates))
     else:
         candidates = [task for task in tasks if is_due(task)]
         logger.info("执行模式: 已到监测时间 (%d 项)", len(candidates))
@@ -240,6 +261,11 @@ def build_parser() -> argparse.ArgumentParser:
     run_parser = subparsers.add_parser("run", help="执行验证")
     run_group = run_parser.add_mutually_exclusive_group()
     run_group.add_argument("--due", action="store_true", help="执行已到监测时间的任务（默认）")
+    run_group.add_argument(
+        "--window",
+        action="store_true",
+        help="仅执行处于「到点+10min 起单次 5min 时段」的任务（统一调度 production 用）",
+    )
     run_group.add_argument("--all", action="store_true", help="列出今日全部适用任务，未到监测时间的标记为 skipped")
     run_parser.add_argument("--task", help="仅执行指定任务")
     run_parser.add_argument("--force", action="store_true", help="忽略监测时间限制，强制执行")
@@ -266,7 +292,12 @@ def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
 
-    if args.command == "run" and not args.all and not args.task:
+    if (
+        args.command == "run"
+        and not args.all
+        and not args.task
+        and not getattr(args, "window", False)
+    ):
         args.due = True
 
     return args.func(args)

@@ -9,6 +9,9 @@ from datetime import datetime, time
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
+from .config_loader import load_config
+from .elk_task_schedule import active_elk_task_ids, is_elk_job_due
+from .writing_task_schedule import is_writing_job_due
 from .env_file import load_all_monitor_env_files, load_writing_monitor_env_files
 from .notifier import send_markdown_message
 from .wecom_format import JOB_LABELS, failure_note_for_job, monitor_report_markdown
@@ -125,6 +128,8 @@ def _run_single_job(
     dry_run: bool,
     notify: bool,
     no_notify: bool,
+    elk_force_all_tasks: bool = False,
+    writing_force_all: bool = False,
 ) -> tuple[int, str | None]:
     config_path = Path(job.config)
     if job.id == "health":
@@ -138,18 +143,57 @@ def _run_single_job(
     elif job.id == "writing":
         from .writing_main import run_writing_monitor
 
-        runner = run_writing_monitor
-    elif job.id == "elk":
-        from . import __main__ as monitor_main
-
         def runner(path: Path, **kwargs):  # type: ignore[misc]
-            args = monitor_main.namespace_for_elk_run(
-                config=str(path),
+            return run_writing_monitor(
+                path,
                 at=kwargs.get("at"),
                 as_json=bool(kwargs.get("as_json", False)),
                 dry_run=bool(kwargs.get("dry_run", False)),
                 notify=bool(kwargs.get("notify", False)),
                 no_notify=bool(kwargs.get("no_notify", False)),
+                writing_use_window=not kwargs.get("writing_force_all", False),
+                writing_force_all=bool(kwargs.get("writing_force_all", False)),
+            )
+    elif job.id == "elk":
+        from . import __main__ as monitor_main
+
+        def runner(path: Path, **kwargs):  # type: ignore[misc]
+            cron_cfg = load_config(path)
+            at_val = kwargs.get("at")
+            tz = ZoneInfo(cron_cfg.timezone)
+            if at_val:
+                probe = datetime.fromisoformat(at_val.replace("Z", "+00:00"))
+                if probe.tzinfo is None:
+                    probe = probe.replace(tzinfo=tz)
+                else:
+                    probe = probe.astimezone(tz)
+            else:
+                probe = datetime.now(tz)
+            task_ids = active_elk_task_ids(cron_cfg, probe)
+            if kwargs.get("elk_force_all_tasks"):
+                task_ids = None  # --force：检全部任务（联调）
+            elif not task_ids:
+                if kwargs.get("as_json"):
+                    print(
+                        json.dumps(
+                            {
+                                "mode": "elk",
+                                "skipped": True,
+                                "reason": "no_task_in_monitor_window",
+                                "checked_at": probe.isoformat(),
+                            },
+                            ensure_ascii=False,
+                        )
+                    )
+                return 0
+            args = monitor_main.namespace_for_elk_run(
+                config=str(path),
+                at=at_val,
+                as_json=bool(kwargs.get("as_json", False)),
+                dry_run=bool(kwargs.get("dry_run", False)),
+                notify=bool(kwargs.get("notify", False)),
+                no_notify=bool(kwargs.get("no_notify", False)),
+                task_ids=task_ids,
             )
             return monitor_main.run_monitor(args)
 
@@ -169,6 +213,8 @@ def _run_single_job(
                 dry_run=False,
                 notify=notify,
                 no_notify=no_notify,
+                elk_force_all_tasks=elk_force_all_tasks,
+                writing_force_all=writing_force_all,
             )
         return code, buf.getvalue().strip() or None
 
@@ -179,6 +225,8 @@ def _run_single_job(
         dry_run=False,
         notify=notify,
         no_notify=no_notify,
+        elk_force_all_tasks=elk_force_all_tasks,
+        writing_force_all=writing_force_all,
     )
     return code, None
 
@@ -204,6 +252,23 @@ def run_scheduled_monitors(
     cfg = load_monitor_schedule(schedule_path)
     tz = ZoneInfo(cfg.timezone)
     now = _resolve_now(cfg.timezone, at)
+    elk_cron_cfg = None
+    elk_job = cfg.jobs.get("elk")
+    if elk_job and elk_job.config:
+        elk_path = Path(elk_job.config)
+        if not elk_path.is_file():
+            elk_path = repo_root / elk_job.config
+        if elk_path.is_file():
+            elk_cron_cfg = load_config(elk_path)
+
+    writing_cfg_path: Path | None = None
+    writing_job = cfg.jobs.get("writing")
+    if writing_job and writing_job.config:
+        w_path = Path(writing_job.config)
+        if not w_path.is_file():
+            w_path = repo_root / writing_job.config
+        if w_path.is_file():
+            writing_cfg_path = w_path
 
     results: dict[str, dict] = {}
     skipped: list[dict[str, str]] = []
@@ -215,9 +280,25 @@ def run_scheduled_monitors(
         if not job.enabled:
             skipped.append({"job": job_id, "reason": "disabled"})
             continue
-        due = force or is_job_due(
-            now, job, cfg.dispatcher_interval_minutes
-        )
+        if force and job_id in ("elk", "writing"):
+            due = True
+        elif job_id == "elk" and elk_cron_cfg is not None:
+            due = is_elk_job_due(
+                now,
+                cron_cfg=elk_cron_cfg,
+                dispatcher_interval_minutes=cfg.dispatcher_interval_minutes,
+                job_enabled=job.enabled,
+            )
+        elif job_id == "writing" and writing_cfg_path is not None:
+            due = is_writing_job_due(
+                now,
+                config_path=writing_cfg_path,
+                repo_root=repo_root,
+                dispatcher_interval_minutes=cfg.dispatcher_interval_minutes,
+                job_enabled=job.enabled,
+            )
+        else:
+            due = is_job_due(now, job, cfg.dispatcher_interval_minutes)
         if not due:
             skipped.append({"job": job_id, "reason": "not_due"})
             continue
@@ -233,6 +314,8 @@ def run_scheduled_monitors(
             dry_run=dry_run,
             notify=notify,
             no_notify=no_notify,
+            elk_force_all_tasks=force and job_id == "elk",
+            writing_force_all=force and job_id == "writing",
         )
         entry: dict = {"exit_code": code, "description": job.description}
         if captured:
