@@ -52,6 +52,25 @@ def _job_hourly_report_message(job_id: str, info: dict, now: datetime) -> str:
     )
 
 
+def _parse_captured_job_detail(captured: str) -> dict | None:
+    text = captured.strip()
+    if not text:
+        return None
+    try:
+        data = json.loads(text)
+        return data if isinstance(data, dict) else None
+    except json.JSONDecodeError:
+        pass
+    start = text.find("{")
+    if start < 0:
+        return None
+    try:
+        data, _ = json.JSONDecoder().raw_decode(text[start:])
+        return data if isinstance(data, dict) else None
+    except json.JSONDecodeError:
+        return None
+
+
 def _run_result_skipped(info: dict) -> bool:
     detail = info.get("detail")
     if isinstance(detail, dict) and detail.get("skipped"):
@@ -377,9 +396,10 @@ def run_scheduled_monitors(
         )
         entry: dict = {"exit_code": code, "description": job.description}
         if captured:
-            try:
-                entry["detail"] = json.loads(captured)
-            except json.JSONDecodeError:
+            parsed = _parse_captured_job_detail(captured)
+            if parsed is not None:
+                entry["detail"] = parsed
+            else:
                 entry["detail_raw"] = captured
         results[job_id] = entry
         if code != 0:

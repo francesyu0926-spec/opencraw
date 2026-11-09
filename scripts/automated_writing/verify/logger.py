@@ -78,7 +78,8 @@ def setup_logging(verbose: bool = False) -> None:
     level = logging.DEBUG if verbose else logging.INFO
     formatter = logging.Formatter(fmt=_LOG_FORMAT, datefmt=_DATE_FORMAT)
 
-    console_handler = logging.StreamHandler(sys.stdout)
+    log_stream = sys.stderr if os.getenv("VERIFY_CONSOLE_STDERR") else sys.stdout
+    console_handler = logging.StreamHandler(log_stream)
     console_handler.setFormatter(formatter)
 
     file_handler = DailyFileHandler(_log_dir())

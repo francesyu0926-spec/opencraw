@@ -10,6 +10,26 @@ from pathlib import Path
 from .env_file import find_repo_root, load_writing_monitor_env_files
 
 
+def _parse_json_payload(text: str) -> dict | None:
+    """Parse verify stdout; tolerate leading log lines before the JSON object."""
+    stripped = text.strip()
+    if not stripped:
+        return None
+    try:
+        data = json.loads(stripped)
+        return data if isinstance(data, dict) else None
+    except json.JSONDecodeError:
+        pass
+    start = stripped.find("{")
+    if start < 0:
+        return None
+    try:
+        data, _ = json.JSONDecoder().raw_decode(stripped[start:])
+        return data if isinstance(data, dict) else None
+    except json.JSONDecodeError:
+        return None
+
+
 def _ensure_verify_import_path(repo_root: Path) -> Path:
     aw_root = repo_root / "scripts" / "automated_writing"
     aw_str = str(aw_root)
@@ -61,6 +81,8 @@ def run_writing_monitor(
     else:
         os.environ.pop("WRITING_MONITOR_AT", None)
 
+    window_task_names: list[str] | None = None
+
     if writing_force_all:
         argv = ["run", "--all", "--force"]
     elif writing_use_window:
@@ -94,6 +116,7 @@ def run_writing_monitor(
                     )
                 )
             return 0
+        window_task_names = list(names)
         argv = ["run", "--window"]
     else:
         argv = ["run", "--due"]
@@ -101,12 +124,20 @@ def run_writing_monitor(
         argv.append("--no-notify")
 
     if as_json:
+        os.environ["VERIFY_CONSOLE_STDERR"] = "1"
         buf = io.StringIO()
         with redirect_stdout(buf):
             code = verify_main(argv)
         text = buf.getvalue().strip()
-        if text:
-            print(text)
+        payload = _parse_json_payload(text) if text else None
+        if payload is None and text:
+            print(text, file=sys.stderr)
+            return code if code != 0 else 2
+        if payload is not None:
+            if window_task_names is not None:
+                payload["monitored_tasks"] = [{"name": n} for n in window_task_names]
+                payload.setdefault("mode", "writing_monitor")
+            print(json.dumps(payload, ensure_ascii=False, indent=2))
         return code
 
     return verify_main(argv)

@@ -69,8 +69,17 @@ def subtasks_display_for_job(job_id: str, info: dict) -> str:
             if isinstance(raw, list) and raw:
                 return "、".join(str(x).strip() for x in raw if str(x).strip())
     if job_id == "writing":
+        monitored = detail.get("monitored_tasks")
+        if isinstance(monitored, list):
+            names = [
+                str(item.get("name") or "").strip()
+                for item in monitored
+                if isinstance(item, dict) and str(item.get("name") or "").strip()
+            ]
+            if names:
+                return "、".join(names)
         rows = detail.get("results") or []
-        names: list[str] = []
+        names = []
         for row in rows:
             if not isinstance(row, dict):
                 continue

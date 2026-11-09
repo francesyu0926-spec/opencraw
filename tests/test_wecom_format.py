@@ -35,6 +35,13 @@ class WecomFormatSubtasksTests(unittest.TestCase):
         }
         self.assertEqual(subtasks_display_for_job("writing", info), "盘前情报")
 
+    def test_writing_subtasks_from_monitored_tasks(self) -> None:
+        info = {
+            "exit_code": 0,
+            "detail": {"monitored_tasks": [{"name": "盘前情报"}]},
+        }
+        self.assertEqual(subtasks_display_for_job("writing", info), "盘前情报")
+
     def test_markdown_subtasks_before_conclusion(self) -> None:
         body = monitor_report_markdown(
             checked_at="2026-11-09 07:40:00",
