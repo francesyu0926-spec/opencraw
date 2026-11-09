@@ -106,9 +106,8 @@ def evaluate_elk_subtasks(
             status = "in_progress"
             issues = []
 
-        unresolved = status == "failed" or (
-            status == "in_progress" and ref > plan_end
-        )
+        unresolved = status == "failed"
+        in_grace = status == "in_progress"
         results.append(
             {
                 "task_id": tid,
@@ -116,6 +115,7 @@ def evaluate_elk_subtasks(
                 "status": status,
                 "issues": issues,
                 "unresolved": unresolved,
+                "in_grace": in_grace,
             }
         )
 
@@ -124,6 +124,8 @@ def evaluate_elk_subtasks(
         return results, exit_code
     if any(r.get("unresolved") for r in results):
         exit_code = 1
+    elif any(r.get("status") == "in_progress" for r in results):
+        exit_code = 2
     return results, exit_code
 
 

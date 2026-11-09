@@ -6,6 +6,8 @@ from datetime import datetime
 from zoneinfo import ZoneInfo
 
 from scripts.cron_task_monitor.wecom_format import (
+    exit_code_to_report_passed,
+    grace_note_for_job,
     monitor_report_markdown,
     report_checked_at_for_job,
     subtasks_display_for_job,
@@ -13,6 +15,30 @@ from scripts.cron_task_monitor.wecom_format import (
 
 
 class WecomFormatSubtasksTests(unittest.TestCase):
+    def test_grace_exit_code_shows_pending_verdict(self) -> None:
+        body = monitor_report_markdown(
+            checked_at="2026-11-09 02:15:00",
+            passed=exit_code_to_report_passed(2),
+            monitor_item="ELK 数据同步",
+            note=grace_note_for_job(
+                "elk",
+                {
+                    "detail": {
+                        "subtask_results": [
+                            {
+                                "task_id": "CBD_SECURITY_DICT",
+                                "name": "字典表同步",
+                                "status": "in_progress",
+                            }
+                        ]
+                    }
+                },
+            ),
+        )
+        self.assertIn("进行中", body)
+        self.assertNotIn("未通过", body)
+        self.assertIn("宽限观察中", body)
+
     def test_elk_subtasks_empty_when_only_failed_results(self) -> None:
         info = {
             "exit_code": 1,

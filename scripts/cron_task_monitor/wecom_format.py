@@ -21,18 +21,19 @@ def monitor_report_title(monitor_item: str = "") -> str:
 def monitor_report_markdown(
     *,
     checked_at: str,
-    passed: bool,
+    passed: bool | None,
     monitor_item: str = "",
     note: str = "",
     subtasks: str = "",
     title: str | None = None,
 ) -> str:
     heading = title if title is not None else monitor_report_title(monitor_item)
-    verdict = (
-        '<font color="info">通过</font>'
-        if passed
-        else '<font color="warning">未通过</font>'
-    )
+    if passed is True:
+        verdict = '<font color="info">通过</font>'
+    elif passed is False:
+        verdict = '<font color="warning">未通过</font>'
+    else:
+        verdict = '<font color="comment">进行中</font>'
     lines = [
         f"### {heading}",
         f"> 时间：{checked_at}",
@@ -129,6 +130,39 @@ def subtasks_display_for_job(job_id: str, info: dict) -> str:
         if names:
             return "、".join(names)
     return ""
+
+
+def exit_code_to_report_passed(exit_code: int) -> bool | None:
+    if exit_code == 0:
+        return True
+    if exit_code == 2:
+        return None
+    return False
+
+
+def grace_note_for_job(job_id: str, info: dict) -> str:
+    """预计结束后的宽限期内仍在执行 — 非通过也非未通过。"""
+    detail = info.get("detail") if isinstance(info.get("detail"), dict) else {}
+    if job_id != "elk":
+        return info.get("description") or JOB_LABELS.get(job_id, job_id)
+    sub_rows = detail.get("subtask_results") or []
+    notes: list[str] = []
+    for row in sub_rows:
+        if not isinstance(row, dict) or row.get("status") != "in_progress":
+            continue
+        name = row.get("name") or row.get("task_id") or "ELK任务"
+        notes.append(f"{name}【宽限观察中】")
+    if notes:
+        return "；".join(notes)
+    return info.get("description") or JOB_LABELS.get(job_id, job_id)
+
+
+def outcome_note_for_job(job_id: str, info: dict, exit_code: int) -> str:
+    if exit_code == 0:
+        return ""
+    if exit_code == 2:
+        return grace_note_for_job(job_id, info)
+    return failure_note_for_job(job_id, info)
 
 
 def failure_note_for_job(job_id: str, info: dict) -> str:

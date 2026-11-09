@@ -63,9 +63,24 @@ def test_before_plan_end_not_evaluated() -> None:
     assert results == []
 
 
-def test_in_progress_after_plan_end_counts_unresolved() -> None:
-    """超过预计结束仍未完成 → 算未通过。"""
-    ref = datetime(2026, 11, 9, 2, 1, tzinfo=TZ)
+def test_in_progress_in_grace_is_pending_not_fail() -> None:
+    """预计结束后的宽限期内 → exit 2，不算未通过。"""
+    ref = datetime(2026, 11, 9, 2, 15, tzinfo=TZ)
+    hits = [
+        _hit("开始执行任务: CBD_SECURITY_DICT,执行时间：02:00:01"),
+    ]
+    results, code = evaluate_elk_subtasks(
+        CFG, hits, ["CBD_SECURITY_DICT"], ref
+    )
+    assert code == 2
+    assert results[0]["status"] == "in_progress"
+    assert results[0]["unresolved"] is False
+    assert results[0]["in_grace"] is True
+
+
+def test_in_progress_after_monitor_end_is_failed() -> None:
+    """超过预计结束+宽限仍未完成 → 未通过。"""
+    ref = datetime(2026, 11, 9, 2, 12, tzinfo=TZ)
     hits = [
         _hit("开始执行任务: NC_LISTSTOCK_GLANCE,执行时间：01:00:05"),
     ]
@@ -73,7 +88,7 @@ def test_in_progress_after_plan_end_counts_unresolved() -> None:
         CFG, hits, ["NC_LISTSTOCK_GLANCE"], ref
     )
     assert code == 1
-    assert results[0]["status"] == "in_progress"
+    assert results[0]["status"] == "failed"
     assert results[0]["unresolved"] is True
 
 
