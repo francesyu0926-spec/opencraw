@@ -52,6 +52,21 @@ def _scheduled_dt(ref: datetime, hhmm: str, tz: ZoneInfo) -> datetime:
     return datetime.combine(ref.date(), time(hour, minute), tzinfo=tz)
 
 
+def task_completion_deadline(
+    cfg: MonitorConfig, task_name: str, ref: datetime
+) -> datetime | None:
+    """预计结束时刻 + overrun（执行超时截止）。"""
+    task = _find_task(cfg, task_name)
+    if not task:
+        return None
+    tz = ZoneInfo(cfg.timezone)
+    end = _scheduled_dt(ref, task.expected_end, tz)
+    start = _scheduled_dt(ref, task.scheduled_start, tz)
+    if end <= start:
+        end += timedelta(days=1)
+    return end + timedelta(minutes=cfg.overrun_after_end_threshold_minutes)
+
+
 def calculate_time_diff_by_task(cfg: MonitorConfig, task_name: str, ref: datetime) -> int:
     """计划执行时长（秒）：expected_end - scheduled_start。"""
     task = _find_task(cfg, task_name)

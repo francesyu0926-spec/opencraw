@@ -41,7 +41,7 @@ class TestQuotesEsRules(unittest.TestCase):
         hits = [
             {
                 "_source": {
-                    "msg": "开始执行任务: CBD_QUOT_CBND_STK,执行时间：2025-11-03 02:10:00",
+                    "msg": "开始执行任务: CBD_PUB_BOAR_INFO,执行时间：2025-11-03 01:07:00",
                 }
             }
         ]
@@ -53,9 +53,14 @@ class TestQuotesEsRules(unittest.TestCase):
         hits = [
             {
                 "_source": {
-                    "msg": "任务执行完成:CBD_QUOT_CBND_STK,耗时：7200秒",
+                    "msg": "开始执行任务: CBD_PUB_BOAR_INFO,执行时间：2025-11-03 01:00:01",
                 }
-            }
+            },
+            {
+                "_source": {
+                    "msg": "任务执行完成:CBD_PUB_BOAR_INFO,耗时：900秒",
+                }
+            },
         ]
         alerts = check_task_ended_late(self.cfg, hits, self.ref)
         self.assertTrue(alerts)
@@ -71,10 +76,10 @@ class TestQuotesEsRules(unittest.TestCase):
         hits = [
             {
                 "_source": {
-                    "msg": "开始执行任务: CBD_QUOT_CBND_STK,执行时间：2025-11-03 02:00:05",
+                    "msg": "开始执行任务: CBD_PUB_BOAR_INFO,执行时间：2025-11-03 01:00:05",
                 }
             },
-            {"_source": {"msg": "任务执行完成:CBD_QUOT_CBND_STK,耗时：120秒"}},
+            {"_source": {"msg": "任务执行完成:CBD_PUB_BOAR_INFO,耗时：120秒"}},
         ]
         alerts = run_mdimonitor_checks(self.cfg, hits, self.keywords, self.ref)
         self.assertEqual(alerts, [])

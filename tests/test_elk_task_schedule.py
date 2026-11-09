@@ -36,7 +36,7 @@ def test_trading_day_window_until_0415() -> None:
     task = next(t for t in CFG.tasks if t.id == "CBD_TRD_DT_RECNT")
     start, end = task_monitor_window(CFG, task, _at(4, 0))
     assert start.hour == 4 and start.minute == 0
-    assert end.hour == 4 and end.minute == 15
+    assert end.hour == 4 and end.minute == 16
     assert is_task_in_monitor_window(CFG, task, _at(4, 10))
     assert not is_task_in_monitor_window(CFG, task, _at(2, 0))
 

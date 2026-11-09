@@ -15,8 +15,8 @@ critical_window:
   start: "08:30"
   end: "09:15"
 
-late_start_threshold_minutes: 5
-overrun_after_end_threshold_minutes: 10
+late_start_threshold_minutes: 6
+overrun_after_end_threshold_minutes: 11
 
 monitor_log_prefix: "[TASK_MONITOR]"
 
@@ -67,8 +67,8 @@ tasks:
 
   - id: CBD_QUOT_CBND_STK
     name: 同步可转债
-    scheduled_start: "02:00"
-    expected_end: "02:05"
+    scheduled_start: "04:00"
+    expected_end: "04:05"
     log_index_pattern: "logstash-sync-mongo-*"
     server: "124.220.0.191"
     log_dir: "/data/zxt/sync-mongo/logs"
@@ -77,8 +77,8 @@ tasks:
   # --- logstash-zxt-terminal-task-* / 172.30.176.135 ---
   - id: CBD_SECURITY_DICT
     name: 字典表同步
-    scheduled_start: "04:00"
-    expected_end: "04:05"
+    scheduled_start: "02:00"
+    expected_end: "02:05"
     log_index_pattern: "logstash-zxt-terminal-task-*"
     server: "172.30.176.135"
     log_dir: "/usr/local/zxt/task/logs"
@@ -104,8 +104,8 @@ tasks:
 
   - id: NC_TQ_SK_XDRY
     name: 复权因子
-    scheduled_start: "02:40"
-    expected_end: "02:45"
+    scheduled_start: "00:00"
+    expected_end: "00:05"
     log_index_pattern: "logstash-zxt-terminal-task-*"
     server: "172.30.176.135"
     log_dir: "/usr/local/zxt/task/logs"
