@@ -26,7 +26,6 @@ def run_writing_monitor(
     dry_run: bool,
     notify: bool,
     no_notify: bool,
-    *,
     writing_use_window: bool = True,
     writing_force_all: bool = False,
 ) -> int:
