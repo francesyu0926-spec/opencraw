@@ -56,9 +56,32 @@ def test_passed_when_peer_task_late_but_self_ok() -> None:
     assert results[0]["status"] == "passed"
 
 
+def test_failure_log_before_plan_end_is_in_progress() -> None:
+    """计划结束前即便有失败日志，也不套告警规则。"""
+    ref = datetime(2026, 11, 9, 1, 2, tzinfo=TZ)
+    hits = [_hit("CBD_BOAR_INFO 执行失败")]
+    results, code = evaluate_elk_subtasks(CFG, hits, ["CBD_BOAR_INFO"], ref)
+    assert code == 1
+    assert results[0]["status"] == "in_progress"
+    assert results[0]["issues"] == []
+
+
 def test_failed_when_execution_failed_in_log() -> None:
-    ref = datetime(2026, 11, 9, 1, 5, tzinfo=TZ)
+    ref = datetime(2026, 11, 9, 1, 6, tzinfo=TZ)
     hits = [_hit("CBD_BOAR_INFO 执行失败")]
     results, code = evaluate_elk_subtasks(CFG, hits, ["CBD_BOAR_INFO"], ref)
     assert code == 1
     assert results[0]["status"] == "failed"
+
+
+def test_complete_before_plan_end_stays_in_progress() -> None:
+    ref = datetime(2026, 11, 9, 1, 2, tzinfo=TZ)
+    hits = [
+        _hit("开始执行任务: CBD_PUB_BOAR_INFO,执行时间：01:00:01"),
+        _hit("任务执行完成:CBD_PUB_BOAR_INFO,耗时：60秒"),
+    ]
+    results, code = evaluate_elk_subtasks(
+        CFG, hits, ["CBD_PUB_BOAR_INFO"], ref
+    )
+    assert code == 1
+    assert results[0]["status"] == "in_progress"

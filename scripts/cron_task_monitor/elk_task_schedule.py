@@ -25,17 +25,33 @@ def _in_hhmm_window(now: datetime, start_hhmm: str, end_hhmm: str) -> bool:
     return t >= start_t or t <= end_t
 
 
+def _task_expected_end_dt(
+    cfg: MonitorConfig, task: TaskDefinition, now: datetime
+) -> tuple[datetime, datetime]:
+    """计划开始、预期结束（当日；结束早于开始则 +1 天）。"""
+    tz = ZoneInfo(cfg.timezone)
+    start = _combine(now, task.scheduled_start, tz)
+    end = _combine(now, task.expected_end, tz)
+    if end <= start:
+        end += timedelta(days=1)
+    return start, end
+
+
+def task_plan_end(
+    cfg: MonitorConfig, task: TaskDefinition, now: datetime
+) -> datetime:
+    """子任务计划结束时刻（不含 overrun 宽限期）。"""
+    _, end = _task_expected_end_dt(cfg, task, now)
+    return end
+
+
 def task_monitor_window(
     cfg: MonitorConfig,
     task: TaskDefinition,
     now: datetime,
 ) -> tuple[datetime, datetime]:
     """单任务监控窗口：[计划开始, 预期结束 + overrun]（当日，跨日结束自动 +1 天）。"""
-    tz = ZoneInfo(cfg.timezone)
-    start = _combine(now, task.scheduled_start, tz)
-    end = _combine(now, task.expected_end, tz)
-    if end <= start:
-        end += timedelta(days=1)
+    start, end = _task_expected_end_dt(cfg, task, now)
     monitor_end = end + timedelta(minutes=cfg.overrun_after_end_threshold_minutes)
     return start, monitor_end
 

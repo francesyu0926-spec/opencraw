@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from .elk_task_schedule import task_monitor_window
+from .elk_task_schedule import task_monitor_window, task_plan_end
 from .mdimonitor_checks import run_mdimonitor_checks
 from .models import Alert, AlertKind, MonitorConfig
 
@@ -62,8 +62,8 @@ def evaluate_elk_subtasks(
     ref: datetime,
 ) -> tuple[list[dict], int]:
     """
-  子任务成功：① 未延迟启动 ② 未执行失败 ③ 未执行超时，且日志中已有「任务执行完成」。
-  监控窗内尚无完成日志则为 in_progress（本轮不算成功）。
+  计划结束前不套用告警规则，一律 in_progress。
+  到达计划结束后：① 未延迟启动 ② 未执行失败 ③ 未执行超时，且已有「任务执行完成」才算 passed。
   """
     by_id = {t.id: t for t in cfg.tasks}
     results: list[dict] = []
@@ -81,25 +81,30 @@ def evaluate_elk_subtasks(
             )
             continue
 
-        mdimonitor_alerts = _mdimonitor_alerts_for_task(
-            run_mdimonitor_checks(cfg, hits, [tid], ref),
-            tid,
-            task.name,
-        )
-        issues = [a.message for a in mdimonitor_alerts]
         has_complete = _task_has_completion(hits, tid, task.name)
+        plan_end = task_plan_end(cfg, task, ref)
         _, monitor_end = task_monitor_window(cfg, task, ref)
 
-        if mdimonitor_alerts:
-            status = "failed"
-        elif has_complete:
-            status = "passed"
-        elif ref > monitor_end:
-            status = "failed"
-            issues.append("监控窗口结束前未见「任务执行完成」日志")
-        else:
+        if ref < plan_end:
             status = "in_progress"
             issues = []
+        else:
+            mdimonitor_alerts = _mdimonitor_alerts_for_task(
+                run_mdimonitor_checks(cfg, hits, [tid], ref),
+                tid,
+                task.name,
+            )
+            issues = [a.message for a in mdimonitor_alerts]
+            if mdimonitor_alerts:
+                status = "failed"
+            elif has_complete:
+                status = "passed"
+            elif ref > monitor_end:
+                status = "failed"
+                issues.append("监控窗口结束前未见「任务执行完成」日志")
+            else:
+                status = "in_progress"
+                issues = []
 
         results.append(
             {
