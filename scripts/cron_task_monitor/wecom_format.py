@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from datetime import datetime
+
 JOB_LABELS: dict[str, str] = {
     "health": "行情 HTTP 探活",
     "ws": "WebSocket 探活",
@@ -49,6 +51,21 @@ def _format_elk_task_row(row: dict) -> str:
     if task_id and name:
         return f"{task_id}（{name}）"
     return task_id or name
+
+
+def report_checked_at_for_job(job_id: str, info: dict, fallback: datetime) -> str:
+    """ELK 报告时间取 ES 查询结束时刻（lte），其它 job 用 fallback。"""
+    detail = info.get("detail") if isinstance(info.get("detail"), dict) else {}
+    if job_id == "elk":
+        qtr = detail.get("query_time_range")
+        if isinstance(qtr, dict) and qtr.get("lte"):
+            lte = str(qtr["lte"]).strip()
+            try:
+                dt = datetime.fromisoformat(lte.replace("Z", "+00:00"))
+                return dt.strftime("%Y-%m-%d %H:%M:%S")
+            except ValueError:
+                pass
+    return fallback.strftime("%Y-%m-%d %H:%M:%S")
 
 
 def subtasks_display_for_job(job_id: str, info: dict) -> str:

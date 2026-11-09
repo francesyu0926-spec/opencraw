@@ -2,8 +2,12 @@ from __future__ import annotations
 
 import unittest
 
+from datetime import datetime
+from zoneinfo import ZoneInfo
+
 from scripts.cron_task_monitor.wecom_format import (
     monitor_report_markdown,
+    report_checked_at_for_job,
     subtasks_display_for_job,
 )
 
@@ -41,6 +45,21 @@ class WecomFormatSubtasksTests(unittest.TestCase):
             "detail": {"monitored_tasks": [{"name": "盘前情报"}]},
         }
         self.assertEqual(subtasks_display_for_job("writing", info), "盘前情报")
+
+    def test_elk_report_time_uses_query_lte(self) -> None:
+        info = {
+            "detail": {
+                "query_time_range": {
+                    "lte": "2026-11-09T01:05:23+08:00",
+                    "gte": "2026-11-09T00:50:23+08:00",
+                }
+            }
+        }
+        fb = datetime(2026, 11, 9, 1, 5, 0, tzinfo=ZoneInfo("Asia/Shanghai"))
+        self.assertEqual(
+            report_checked_at_for_job("elk", info, fb),
+            "2026-11-09 01:05:23",
+        )
 
     def test_markdown_subtasks_before_conclusion(self) -> None:
         body = monitor_report_markdown(

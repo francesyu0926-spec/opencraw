@@ -18,6 +18,7 @@ from .wecom_format import (
     JOB_LABELS,
     failure_note_for_job,
     monitor_report_markdown,
+    report_checked_at_for_job,
     subtasks_display_for_job,
 )
 from .wecom_diag import warn_missing_webhooks
@@ -47,8 +48,9 @@ def _job_hourly_report_message(job_id: str, info: dict, now: datetime) -> str:
     passed = code == 0
     note = failure_note_for_job(job_id, info) if not passed else ""
     subtasks = subtasks_display_for_job(job_id, info)
+    checked = report_checked_at_for_job(job_id, info, now)
     return monitor_report_markdown(
-        checked_at=now.strftime("%Y-%m-%d %H:%M:%S"),
+        checked_at=checked,
         passed=passed,
         monitor_item=JOB_LABELS.get(job_id, job_id),
         subtasks=subtasks,

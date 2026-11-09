@@ -87,7 +87,7 @@ class TestQuotesEsLive(unittest.TestCase):
 
         cfg = load_config("config/cron_tasks.yaml")
         kws = msg_keywords_from_config(cfg)
-        hits, err = search_hits(cfg, kws)
+        hits, err, _qtr = search_hits(cfg, kws)
         self.assertIsNone(err, err)
         self.assertIsInstance(hits, list)
 

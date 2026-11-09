@@ -258,7 +258,8 @@ def run_monitor(args: argparse.Namespace) -> int:
     if args.print_elk_query:
         from .time_window import resolve_query_timestamp_range
 
-        gte, lte = resolve_query_timestamp_range(cfg, now)
+        query_end = now
+        gte, lte = resolve_query_timestamp_range(cfg, now, query_end=query_end)
         print(
             json.dumps(
                 {
@@ -277,7 +278,9 @@ def run_monitor(args: argparse.Namespace) -> int:
         print("no tasks matched", file=sys.stderr)
         return 2
 
-    hits, err = search_hits(cfg, keywords, now)
+    hits, err, query_time_range = search_hits(
+        cfg, keywords, now, simulate_at=bool(args.at)
+    )
 
     if err:
         alerts: list[Alert] = [
@@ -324,6 +327,7 @@ def run_monitor(args: argparse.Namespace) -> int:
             "alert_count": len(alerts),
             "task_ids": keywords,
             "monitored_tasks": monitored_tasks,
+            "query_time_range": query_time_range,
             "alerts": [
                 {
                     "kind": a.kind.value,

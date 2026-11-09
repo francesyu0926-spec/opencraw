@@ -27,6 +27,8 @@ def _batch_bounds(cfg: MonitorConfig, now: datetime, tz: ZoneInfo) -> tuple[date
 def resolve_query_timestamp_range(
     cfg: MonitorConfig,
     ref: datetime | None = None,
+    *,
+    query_end: datetime | None = None,
 ) -> tuple[str, str]:
     """
     返回 ES @timestamp range 的 gte、lte（ISO8601，含时区偏移）。
@@ -39,30 +41,31 @@ def resolve_query_timestamp_range(
     elastic：使用 elasticsearch.timestamp_gte / timestamp_lte（如 now-15m、now/d）。
     """
     tz = ZoneInfo(cfg.timezone)
-    now = (ref or datetime.now(tz)).astimezone(tz)
+    ref_dt = (ref or datetime.now(tz)).astimezone(tz)
+    end_dt_wall = (query_end or ref_dt).astimezone(tz)
     mode = (cfg.query_time_mode or "rolling_in_batch").strip().lower()
 
     if mode in ("rolling_in_batch", "rolling"):
-        start_dt, end_dt = _batch_bounds(cfg, now, tz)
+        start_dt, end_dt = _batch_bounds(cfg, end_dt_wall, tz)
         # 批窗口外（如白天手动跑）：仍只查最近 schedule_interval 分钟
-        if now >= end_dt:
+        if end_dt_wall >= end_dt:
             interval = max(1, int(cfg.schedule_interval_minutes or 15))
-            rolling_start = now - timedelta(minutes=interval)
-            return rolling_start.isoformat(), now.isoformat()
+            rolling_start = end_dt_wall - timedelta(minutes=interval)
+            return rolling_start.isoformat(), end_dt_wall.isoformat()
         # 尚未到 00:00：仍查「上一段」批窗口
-        if now < start_dt:
+        if end_dt_wall < start_dt:
             prev_start = start_dt - timedelta(days=1)
             prev_end = end_dt - timedelta(days=1)
             return prev_start.isoformat(), prev_end.isoformat()
         interval = max(1, int(cfg.schedule_interval_minutes or 15))
-        rolling_start = now - timedelta(minutes=interval)
+        rolling_start = end_dt_wall - timedelta(minutes=interval)
         gte_dt = max(start_dt, rolling_start)
-        lte_dt = now
+        lte_dt = end_dt_wall
         return gte_dt.isoformat(), lte_dt.isoformat()
 
     if mode == "batch_window":
-        start_dt, end_dt = _batch_bounds(cfg, now, tz)
-        lte_dt = min(now, end_dt) if now < end_dt else end_dt
+        start_dt, end_dt = _batch_bounds(cfg, end_dt_wall, tz)
+        lte_dt = min(end_dt_wall, end_dt) if end_dt_wall < end_dt else end_dt
         return start_dt.isoformat(), lte_dt.isoformat()
 
     es = cfg.elasticsearch
