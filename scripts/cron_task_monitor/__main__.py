@@ -9,7 +9,7 @@ from zoneinfo import ZoneInfo
 
 from .config_loader import load_config
 from .elk_client import check_elasticsearch
-from .mdimonitor_checks import run_mdimonitor_checks
+from .elk_subtask_eval import alerts_from_subtask_results, evaluate_elk_subtasks
 from .models import Alert, AlertKind
 from .notifier import send_webhook, should_send_notify
 from .quote_utils import msg_keywords_from_config
@@ -294,9 +294,12 @@ def run_monitor(args: argparse.Namespace) -> int:
             )
         ]
         hit_count = 0
+        subtask_results: list[dict] = []
+        elk_exit = 1
     else:
-        alerts = run_mdimonitor_checks(cfg, hits, keywords, now)
         hit_count = len(hits)
+        subtask_results, elk_exit = evaluate_elk_subtasks(cfg, hits, keywords, now)
+        alerts = alerts_from_subtask_results(subtask_results)
 
     notify_ok: bool | None = None
     notify_msg = ""
@@ -317,6 +320,15 @@ def run_monitor(args: argparse.Namespace) -> int:
         for task in cfg.tasks
         if task.id in keywords
     ]
+    if not err:
+        passed_tasks = [
+            {"id": r["task_id"], "name": r["name"]}
+            for r in subtask_results
+            if r.get("status") == "passed"
+        ]
+    else:
+        passed_tasks = []
+        subtask_results = []
 
     if args.json:
         payload: dict = {
@@ -327,6 +339,8 @@ def run_monitor(args: argparse.Namespace) -> int:
             "alert_count": len(alerts),
             "task_ids": keywords,
             "monitored_tasks": monitored_tasks,
+            "passed_tasks": passed_tasks,
+            "subtask_results": subtask_results,
             "query_time_range": query_time_range,
             "alerts": [
                 {
@@ -352,7 +366,9 @@ def run_monitor(args: argparse.Namespace) -> int:
         if notify_ok is not None:
             print(f"wecom_notify={'ok' if notify_ok else 'fail'} {notify_msg}")
 
-    return 1 if alerts else 0
+    if err:
+        return 1
+    return elk_exit
 
 
 def main() -> None:

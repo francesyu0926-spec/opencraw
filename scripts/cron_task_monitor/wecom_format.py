@@ -72,6 +72,28 @@ def subtasks_display_for_job(job_id: str, info: dict) -> str:
     """ELK / 写稿企微报告中的子任务列表（id+中文名 或 写稿子任务名）。"""
     detail = info.get("detail") if isinstance(info.get("detail"), dict) else {}
     if job_id == "elk":
+        sub_rows = detail.get("subtask_results")
+        if isinstance(sub_rows, list):
+            labels = []
+            for row in sub_rows:
+                if not isinstance(row, dict) or row.get("status") != "passed":
+                    continue
+                label = _format_elk_task_row(
+                    {"id": row.get("task_id"), "name": row.get("name")}
+                )
+                if label:
+                    labels.append(label)
+            if labels:
+                return "、".join(labels)
+        passed = detail.get("passed_tasks")
+        if isinstance(passed, list) and passed:
+            labels = [
+                _format_elk_task_row(item)
+                for item in passed
+                if isinstance(item, dict) and _format_elk_task_row(item)
+            ]
+            if labels:
+                return "、".join(labels)
         monitored = detail.get("monitored_tasks")
         if isinstance(monitored, list) and monitored:
             labels = [
@@ -122,6 +144,21 @@ def failure_note_for_job(job_id: str, info: dict) -> str:
     if job_id == "ws" and detail and detail.get("error"):
         return str(detail["error"]).strip()
     if job_id == "elk" and detail:
+        sub_rows = detail.get("subtask_results") or []
+        notes: list[str] = []
+        for row in sub_rows:
+            if not isinstance(row, dict):
+                continue
+            st = row.get("status")
+            if st not in ("failed", "in_progress"):
+                continue
+            name = row.get("name") or row.get("task_id") or "ELK任务"
+            tag = "失败" if st == "failed" else "进行中"
+            iss = row.get("issues") or []
+            extra = f"（{'；'.join(str(x) for x in iss if x)}）" if iss else ""
+            notes.append(f"{name}【{tag}】{extra}")
+        if notes:
+            return "；".join(notes)
         alerts = detail.get("alerts") or []
         if alerts and isinstance(alerts[0], dict) and alerts[0].get("message"):
             return str(alerts[0]["message"]).strip()
