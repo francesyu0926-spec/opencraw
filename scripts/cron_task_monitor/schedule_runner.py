@@ -14,7 +14,12 @@ from .elk_task_schedule import active_elk_task_ids, is_elk_job_due
 from .writing_task_schedule import is_writing_job_due
 from .env_file import load_all_monitor_env_files, load_writing_monitor_env_files
 from .notifier import send_markdown_message
-from .wecom_format import JOB_LABELS, failure_note_for_job, monitor_report_markdown
+from .wecom_format import (
+    JOB_LABELS,
+    failure_note_for_job,
+    monitor_report_markdown,
+    subtasks_display_for_job,
+)
 from .wecom_diag import warn_missing_webhooks
 from .daily_boundary import daily_boundary_kind
 from .schedule_config import (
@@ -37,10 +42,12 @@ def _job_hourly_report_message(job_id: str, info: dict, now: datetime) -> str:
     code = int(info.get("exit_code", 1))
     passed = code == 0
     note = failure_note_for_job(job_id, info) if not passed else ""
+    subtasks = subtasks_display_for_job(job_id, info)
     return monitor_report_markdown(
         checked_at=now.strftime("%Y-%m-%d %H:%M:%S"),
         passed=passed,
         monitor_item=JOB_LABELS.get(job_id, job_id),
+        subtasks=subtasks,
         note=note,
     )
 
@@ -468,10 +475,12 @@ def run_scheduled_monitors(
             note_extra = f"{tag}执行"
             existing = failure_note_for_job(job_id, info) if int(info.get("exit_code", 1)) != 0 else ""
             note = f"{note_extra}；{existing}" if existing else note_extra
+            subtasks = subtasks_display_for_job(job_id, info)
             body = monitor_report_markdown(
                 checked_at=end_now.strftime("%Y-%m-%d %H:%M:%S"),
                 passed=int(info.get("exit_code", 1)) == 0,
                 monitor_item=label,
+                subtasks=subtasks,
                 note=note,
             )
             channel = _JOB_NOTIFY_CHANNEL.get(job_id, "health")

@@ -309,6 +309,12 @@ def run_monitor(args: argparse.Namespace) -> int:
             channel="elk",
         )
 
+    monitored_tasks = [
+        {"id": task.id, "name": task.name}
+        for task in cfg.tasks
+        if task.id in keywords
+    ]
+
     if args.json:
         payload: dict = {
             "checked_at": now.isoformat(),
@@ -316,11 +322,15 @@ def run_monitor(args: argparse.Namespace) -> int:
             "mode": MONITOR_MODE,
             "hit_count": hit_count,
             "alert_count": len(alerts),
+            "task_ids": keywords,
+            "monitored_tasks": monitored_tasks,
             "alerts": [
                 {
                     "kind": a.kind.value,
                     "severity": a.severity,
                     "message": a.message,
+                    "task_id": a.task_id,
+                    "task_name": a.task_name,
                 }
                 for a in alerts
             ],
