@@ -16,6 +16,7 @@ from .env_file import load_all_monitor_env_files, load_writing_monitor_env_files
 from .notifier import send_markdown_message
 from .wecom_format import (
     JOB_LABELS,
+    build_job_wecom_report,
     exit_code_to_report_passed,
     failure_note_for_job,
     outcome_note_for_job,
@@ -47,15 +48,13 @@ _JOB_NOTIFY_CHANNEL: dict[str, str] = {
 
 def _job_hourly_report_message(job_id: str, info: dict, now: datetime) -> str:
     code = int(info.get("exit_code", 1))
-    passed = exit_code_to_report_passed(code)
     note = outcome_note_for_job(job_id, info, code)
-    subtasks = subtasks_display_for_job(job_id, info)
     checked = report_checked_at_for_job(job_id, info, now)
-    return monitor_report_markdown(
+    return build_job_wecom_report(
+        job_id=job_id,
+        info=info,
         checked_at=checked,
-        passed=passed,
         monitor_item=JOB_LABELS.get(job_id, job_id),
-        subtasks=subtasks,
         note=note,
     )
 
@@ -512,12 +511,11 @@ def run_scheduled_monitors(
             code = int(info.get("exit_code", 1))
             existing = outcome_note_for_job(job_id, info, code) if code != 0 else ""
             note = f"{note_extra}；{existing}" if existing else note_extra
-            subtasks = subtasks_display_for_job(job_id, info)
-            body = monitor_report_markdown(
+            body = build_job_wecom_report(
+                job_id=job_id,
+                info=info,
                 checked_at=end_now.strftime("%Y-%m-%d %H:%M:%S"),
-                passed=exit_code_to_report_passed(code),
                 monitor_item=label,
-                subtasks=subtasks,
                 note=note,
             )
             channel = _JOB_NOTIFY_CHANNEL.get(job_id, "health")

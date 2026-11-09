@@ -18,6 +18,101 @@ def monitor_report_title(monitor_item: str = "") -> str:
     return f"{item}监控测试报告"
 
 
+def verdict_markup(passed: bool | None) -> str:
+    if passed is True:
+        return '<font color="info">通过</font>'
+    if passed is False:
+        return '<font color="warning">未通过</font>'
+    return '<font color="comment">进行中</font>'
+
+
+def _elk_row_verdict(row: dict) -> bool | None:
+    status = str(row.get("status") or "")
+    if status == "passed":
+        return True
+    if status == "failed":
+        return False
+    if status == "in_progress":
+        return None
+    return None
+
+
+def _elk_row_note(row: dict) -> str:
+    status = str(row.get("status") or "")
+    issues = row.get("issues") or []
+    if status == "failed":
+        joined = "；".join(str(x) for x in issues if str(x).strip())
+        return joined or "未通过巡检"
+    if status == "in_progress":
+        return ""
+    return ""
+
+
+def elk_per_subtask_report_markdown(
+    *,
+    checked_at: str,
+    monitor_item: str,
+    sub_rows: list[dict],
+    job_note: str = "",
+) -> str:
+    heading = monitor_report_title(monitor_item)
+    lines = [
+        f"### {heading}",
+        f"> 时间：{checked_at}",
+        "",
+        "> 子任务结论：",
+    ]
+    for row in sub_rows:
+        if not isinstance(row, dict):
+            continue
+        label = _format_elk_task_row(
+            {"id": row.get("task_id"), "name": row.get("name")}
+        )
+        if not label:
+            continue
+        piece = f"> {label}：{verdict_markup(_elk_row_verdict(row))}"
+        row_note = _elk_row_note(row)
+        if row_note:
+            piece += f"（{row_note}）"
+        lines.append(piece)
+    if job_note.strip():
+        lines.extend(["", f"> 说明：{job_note.strip()}"])
+    return "\n".join(lines)
+
+
+def build_job_wecom_report(
+    *,
+    job_id: str,
+    info: dict,
+    checked_at: str,
+    monitor_item: str = "",
+    note: str = "",
+) -> str:
+    detail = info.get("detail") if isinstance(info.get("detail"), dict) else {}
+    if job_id == "elk":
+        sub_rows = detail.get("subtask_results") or []
+        if sub_rows:
+            job_note = ""
+            if info.get("error"):
+                job_note = str(info.get("error")).strip()
+            elif note.strip() and "宽限观察中" not in note and "【" not in note:
+                job_note = note.strip()
+            return elk_per_subtask_report_markdown(
+                checked_at=checked_at,
+                monitor_item=monitor_item,
+                sub_rows=sub_rows,
+                job_note=job_note,
+            )
+    code = int(info.get("exit_code", 1))
+    return monitor_report_markdown(
+        checked_at=checked_at,
+        passed=exit_code_to_report_passed(code),
+        monitor_item=monitor_item,
+        subtasks=subtasks_display_for_job(job_id, info),
+        note=note,
+    )
+
+
 def monitor_report_markdown(
     *,
     checked_at: str,
@@ -28,12 +123,7 @@ def monitor_report_markdown(
     title: str | None = None,
 ) -> str:
     heading = title if title is not None else monitor_report_title(monitor_item)
-    if passed is True:
-        verdict = '<font color="info">通过</font>'
-    elif passed is False:
-        verdict = '<font color="warning">未通过</font>'
-    else:
-        verdict = '<font color="comment">进行中</font>'
+    verdict = verdict_markup(passed)
     lines = [
         f"### {heading}",
         f"> 时间：{checked_at}",
