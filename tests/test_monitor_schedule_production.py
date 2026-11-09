@@ -57,6 +57,37 @@ class ProductionScheduleTests(unittest.TestCase):
         self.assertFalse(is_job_due(self._at("23:45"), job))
         self.assertFalse(is_job_due(self._at("02:00"), job))
 
+    def test_ws_and_writing_weekdays_only_in_config(self) -> None:
+        self.assertTrue(self.cfg.jobs["ws"].weekdays_only)
+        self.assertTrue(self.cfg.jobs["writing"].weekdays_only)
+        self.assertFalse(self.cfg.jobs["elk"].weekdays_only)
+        self.assertFalse(self.cfg.jobs["health"].weekdays_only)
+
+    def test_weekend_skips_ws_and_writing_jobs(self) -> None:
+        import io
+        import json
+        from contextlib import redirect_stdout
+        from pathlib import Path
+
+        from scripts.cron_task_monitor.schedule_runner import run_scheduled_monitors
+
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            run_scheduled_monitors(
+                Path("config/monitor_schedule.production.yaml"),
+                at="2026-11-07T10:00:00+08:00",
+                as_json=True,
+                dry_run=True,
+                notify=False,
+                no_notify=True,
+            )
+        payload = json.loads(buf.getvalue())
+        by_reason = {s["job"]: s["reason"] for s in payload["jobs_skipped"]}
+        self.assertEqual(by_reason.get("ws"), "weekend")
+        self.assertEqual(by_reason.get("writing"), "weekend")
+        self.assertNotIn("ws", payload["jobs_run"])
+        self.assertNotIn("writing", payload["jobs_run"])
+
 
 if __name__ == "__main__":
     unittest.main()

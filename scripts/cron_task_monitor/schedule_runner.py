@@ -19,6 +19,7 @@ from .wecom_diag import warn_missing_webhooks
 from .daily_boundary import daily_boundary_kind
 from .schedule_config import (
     ScheduledJob,
+    is_weekend,
     load_monitor_schedule,
     notify_success_trial_active,
     success_wecom_allowed,
@@ -325,6 +326,9 @@ def run_scheduled_monitors(
             continue
         if not job.enabled:
             skipped.append({"job": job_id, "reason": "disabled"})
+            continue
+        if job.weekdays_only and is_weekend(now):
+            skipped.append({"job": job_id, "reason": "weekend"})
             continue
         if force and job_id in ("elk", "writing"):
             due = True

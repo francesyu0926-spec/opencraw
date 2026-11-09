@@ -36,6 +36,7 @@ jobs:
     interval_minutes: 10
     active_start: "09:00"
     active_end: "15:30"
+    weekdays_only: true
     config: config/ws_monitor.yaml
 
   health:
@@ -52,4 +53,5 @@ jobs:
     interval_minutes: 5
     active_start: "07:00"
     active_end: "20:30"
+    weekdays_only: true
     config: config/writing_monitor.yaml

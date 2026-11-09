@@ -27,6 +27,7 @@ class ScheduledJob:
     description: str = ""
     active_start: str | None = None
     active_end: str | None = None
+    weekdays_only: bool = False
 
 
 @dataclass(frozen=True)
@@ -62,6 +63,11 @@ def _parse_notify_on_run_complete(data: dict) -> tuple[str, ...]:
     if not isinstance(raw, list):
         return ()
     return tuple(str(j).strip() for j in raw if str(j).strip())
+
+
+def is_weekend(now: datetime) -> bool:
+    """Saturday/Sunday in the schedule timezone (now must be aware)."""
+    return now.weekday() >= 5
 
 
 def is_on_hour_tick(now: datetime, *, grace_seconds: int = 45) -> bool:
@@ -132,6 +138,7 @@ def load_monitor_schedule(path: str | Path) -> MonitorScheduleConfig:
             description=str(item.get("description") or "").strip(),
             active_start=str(active_start).strip() if active_start else None,
             active_end=str(active_end).strip() if active_end else None,
+            weekdays_only=bool(item.get("weekdays_only", False)),
         )
 
     tz_name = str(data.get("timezone") or "Asia/Shanghai").strip()
