@@ -38,7 +38,7 @@ elasticsearch:
 
 tasks:
   # --- logstash-sync-mongo-* / 124.220.0.191 ---
-  - id: CBD_PUB_BOAR_INFO
+  - id: CBD_PUB_BOAR_INFO_2
     name: 主题成分股
     scheduled_start: "01:00"
     expected_end: "01:03"
@@ -47,7 +47,7 @@ tasks:
     log_dir: "/data/zxt/sync-mongo/logs"
     notify: 阳祥风
 
-  - id: CBD_BOAR_INFO
+  - id: CBD_BOAR_INFO_2
     name: 主题
     scheduled_start: "01:00"
     expected_end: "01:05"
@@ -56,7 +56,7 @@ tasks:
     log_dir: "/data/zxt/sync-mongo/logs"
     notify: 阳祥风
 
-  - id: CBD_QUOT_STK_ISS
+  - id: CBD_QUOT_STK_ISS_2
     name: 新股
     scheduled_start: "01:00"
     expected_end: "01:05"
@@ -65,7 +65,7 @@ tasks:
     log_dir: "/data/zxt/sync-mongo/logs"
     notify: 阳祥风
 
-  - id: CBD_QUOT_CBND_STK
+  - id: CBD_QUOT_CBND_STK_2
     name: 同步可转债
     scheduled_start: "04:00"
     expected_end: "04:05"
@@ -75,7 +75,7 @@ tasks:
     notify: 阳祥风
 
   # --- logstash-zxt-terminal-task-* / 172.30.176.135 ---
-  - id: CBD_SECURITY_DICT
+  - id: CBD_SECURITY_DICT_2
     name: 字典表同步
     scheduled_start: "02:00"
     expected_end: "02:05"
@@ -84,7 +84,7 @@ tasks:
     log_dir: "/usr/local/zxt/task/logs"
     notify: 阳祥风
 
-  - id: CBD_TRD_DT_RECNT
+  - id: CBD_TRD_DT_RECNT_2
     name: 交易日
     scheduled_start: "04:00"
     expected_end: "04:05"
@@ -93,7 +93,7 @@ tasks:
     log_dir: "/usr/local/zxt/task/logs"
     notify: 阳祥风
 
-  - id: NC_LISTSTOCK_GLANCE
+  - id: NC_LISTSTOCK_GLANCE_2
     name: 上市股票一览表
     scheduled_start: "01:00"
     expected_end: "02:00"
@@ -102,7 +102,7 @@ tasks:
     log_dir: "/usr/local/zxt/task/logs"
     notify: 阳祥风
 
-  - id: NC_TQ_SK_XDRY
+  - id: NC_TQ_SK_XDRY_2
     name: 复权因子
     scheduled_start: "00:00"
     expected_end: "00:05"
@@ -111,7 +111,7 @@ tasks:
     log_dir: "/usr/local/zxt/task/logs"
     notify: 阳祥风
 
-  - id: CBD_BD_FIN_DATA
+  - id: CBD_BD_FIN_DATA_2
     name: 财务数据
     scheduled_start: "02:40"
     expected_end: "02:45"

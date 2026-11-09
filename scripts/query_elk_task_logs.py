@@ -3,12 +3,12 @@
 
 用法（容器内 /app 为工作目录）::
 
-    python scripts/query_elk_task_logs.py NC_TQ_SK_XDRY
-    python scripts/query_elk_task_logs.py NC_TQ_SK_XDRY --date 2026-11-09
+    python scripts/query_elk_task_logs.py NC_TQ_SK_XDRY_2
+    python scripts/query_elk_task_logs.py NC_TQ_SK_XDRY_2 --date 2026-11-09
 
 宿主机::
 
-    docker exec opencraw-monitor python scripts/query_elk_task_logs.py NC_TQ_SK_XDRY
+    docker exec opencraw-monitor python scripts/query_elk_task_logs.py NC_TQ_SK_XDRY_2
 """
 from __future__ import annotations
 
@@ -42,8 +42,8 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument(
         "keyword",
         nargs="?",
-        default="NC_TQ_SK_XDRY",
-        help="任务 ID 或中文名（默认 NC_TQ_SK_XDRY）",
+        default="NC_TQ_SK_XDRY_2",
+        help="任务 ID 或中文名（默认 NC_TQ_SK_XDRY_2）",
     )
     p.add_argument(
         "--config",

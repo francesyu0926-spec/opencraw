@@ -29,7 +29,7 @@ class TimeWindowTests(unittest.TestCase):
         gte, lte = resolve_query_timestamp_range(
             cfg,
             ref,
-            task_ids=["CBD_SECURITY_DICT", "NC_LISTSTOCK_GLANCE"],
+            task_ids=["CBD_SECURITY_DICT_2", "NC_LISTSTOCK_GLANCE_2"],
         )
         self.assertIn("2026-11-09T01:00:00", gte)
         self.assertIn("2026-11-09T02:20:00", lte)

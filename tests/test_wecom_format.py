@@ -22,12 +22,12 @@ class WecomFormatSubtasksTests(unittest.TestCase):
                 "detail": {
                     "subtask_results": [
                         {
-                            "task_id": "CBD_SECURITY_DICT",
+                            "task_id": "CBD_SECURITY_DICT_2",
                             "name": "字典表同步",
                             "status": "in_progress",
                         },
                         {
-                            "task_id": "CBD_PUB_BOAR_INFO",
+                            "task_id": "CBD_PUB_BOAR_INFO_2",
                             "name": "主题成分股",
                             "status": "passed",
                         },
@@ -49,10 +49,10 @@ class WecomFormatSubtasksTests(unittest.TestCase):
             "exit_code": 1,
             "detail": {
                 "subtask_results": [
-                    {"task_id": "NC_LISTSTOCK_GLANCE", "name": "上市股票一览表", "status": "in_progress"},
+                    {"task_id": "NC_LISTSTOCK_GLANCE_2", "name": "上市股票一览表", "status": "in_progress"},
                 ],
                 "monitored_tasks": [
-                    {"id": "NC_LISTSTOCK_GLANCE", "name": "上市股票一览表"},
+                    {"id": "NC_LISTSTOCK_GLANCE_2", "name": "上市股票一览表"},
                 ],
             },
         }
@@ -63,14 +63,14 @@ class WecomFormatSubtasksTests(unittest.TestCase):
             "exit_code": 0,
             "detail": {
                 "monitored_tasks": [
-                    {"id": "CBD_BOAR_INFO", "name": "主题"},
-                    {"id": "CBD_PUB_BOAR_INFO", "name": "主题成分股"},
+                    {"id": "CBD_BOAR_INFO_2", "name": "主题"},
+                    {"id": "CBD_PUB_BOAR_INFO_2", "name": "主题成分股"},
                 ]
             },
         }
         self.assertEqual(
             subtasks_display_for_job("elk", info),
-            "CBD_BOAR_INFO（主题）、CBD_PUB_BOAR_INFO（主题成分股）",
+            "CBD_BOAR_INFO_2（主题）、CBD_PUB_BOAR_INFO_2（主题成分股）",
         )
 
     def test_writing_subtasks_from_results(self) -> None:

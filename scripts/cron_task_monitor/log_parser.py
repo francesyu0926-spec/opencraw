@@ -7,7 +7,7 @@ from zoneinfo import ZoneInfo
 
 from .models import TaskDefinition, TaskRunRecord
 
-# [TASK_MONITOR] task=CBD_PUB_BOAR_INFO event=start ts=2025-11-03T01:00:01+08:00
+# [TASK_MONITOR] task=CBD_PUB_BOAR_INFO_2 event=start ts=2025-11-03T01:00:01+08:00
 STRUCTURED_RE = re.compile(
     r"\[TASK_MONITOR\]\s+task=(?P<task>\S+)\s+event=(?P<event>start|end)"
     r"(?:\s+status=(?P<status>success|failure|running))?"
