@@ -14,8 +14,7 @@ def _hit(msg: str) -> dict:
     return {"_source": {"msg": msg}}
 
 
-def test_long_task_before_plan_end_not_in_scope() -> None:
-    """未到预计结束 → 不进入评估列表。"""
+def test_long_task_before_plan_end_reports_in_progress() -> None:
     ref = datetime(2026, 11, 9, 1, 5, tzinfo=TZ)
     hits = [
         _hit("开始执行任务: NC_LISTSTOCK_GLANCE,执行时间：01:00:05"),
@@ -23,8 +22,8 @@ def test_long_task_before_plan_end_not_in_scope() -> None:
     results, code = evaluate_elk_subtasks(
         CFG, hits, ["NC_LISTSTOCK_GLANCE"], ref
     )
-    assert code == 0
-    assert results == []
+    assert code == 2
+    assert results[0]["status"] == "in_progress"
 
 
 def test_short_task_passed_when_complete_and_no_violations() -> None:
@@ -55,12 +54,12 @@ def test_passed_when_peer_task_late_but_self_ok() -> None:
     assert results[0]["status"] == "passed"
 
 
-def test_before_plan_end_not_evaluated() -> None:
+def test_before_plan_end_failure_still_fails() -> None:
     ref = datetime(2026, 11, 9, 1, 2, tzinfo=TZ)
     hits = [_hit("CBD_BOAR_INFO 执行失败")]
     results, code = evaluate_elk_subtasks(CFG, hits, ["CBD_BOAR_INFO"], ref)
-    assert code == 0
-    assert results == []
+    assert code == 1
+    assert results[0]["status"] == "failed"
 
 
 def test_grace_without_start_log_is_failed_not_in_progress() -> None:
@@ -152,7 +151,7 @@ def test_failure_in_grace_not_in_progress() -> None:
     assert results[0]["unresolved"] is True
 
 
-def test_complete_before_plan_end_not_evaluated() -> None:
+def test_complete_before_plan_end_can_pass() -> None:
     ref = datetime(2026, 11, 9, 1, 2, tzinfo=TZ)
     hits = [
         _hit("开始执行任务: CBD_PUB_BOAR_INFO,执行时间：01:00:01"),
@@ -162,4 +161,29 @@ def test_complete_before_plan_end_not_evaluated() -> None:
         CFG, hits, ["CBD_PUB_BOAR_INFO"], ref
     )
     assert code == 0
-    assert results == []
+    assert results[0]["status"] == "passed"
+
+
+def test_start_log_without_colon_prefix_counts_as_started() -> None:
+    ref = datetime(2026, 11, 9, 1, 4, tzinfo=TZ)
+    hits = [_hit("[INFO] 任务 CBD_PUB_BOAR_INFO 开始执行任务,执行时间：01:00:01")]
+    results, code = evaluate_elk_subtasks(
+        CFG, hits, ["CBD_PUB_BOAR_INFO"], ref
+    )
+    assert code == 2
+    assert results[0]["status"] == "in_progress"
+
+
+def test_mongo_batch_at_0105_in_progress() -> None:
+    """01:00 批次三个 mongo 任务已开始、未到各自预计结束 → 进行中。"""
+    ref = datetime(2026, 11, 9, 1, 5, tzinfo=TZ)
+    hits = [
+        _hit("开始执行任务: CBD_PUB_BOAR_INFO,执行时间：01:00:01"),
+        _hit("开始执行任务: CBD_BOAR_INFO,执行时间：01:00:02"),
+        _hit("开始执行任务: CBD_QUOT_STK_ISS,执行时间：01:00:03"),
+    ]
+    task_ids = ["CBD_PUB_BOAR_INFO", "CBD_BOAR_INFO", "CBD_QUOT_STK_ISS"]
+    results, code = evaluate_elk_subtasks(CFG, hits, task_ids, ref)
+    assert code == 2
+    assert len(results) == 3
+    assert all(r["status"] == "in_progress" for r in results)

@@ -81,7 +81,7 @@ def test_evaluation_scope_excludes_before_plan_end() -> None:
 
 def test_elk_job_due_on_5min_tick() -> None:
     kwargs = dict(cron_cfg=CFG, dispatcher_interval_minutes=5, job_interval_minutes=5)
-    assert not is_elk_job_due(_at(1, 0), **kwargs)
+    assert is_elk_job_due(_at(1, 0), **kwargs)
     assert is_elk_job_due(_at(1, 5), **kwargs)
     assert is_elk_job_due(_at(1, 10), **kwargs)
     assert is_elk_job_due(_at(1, 15), **kwargs)

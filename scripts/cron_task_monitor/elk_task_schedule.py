@@ -125,6 +125,29 @@ def elk_task_ids_in_evaluation_scope(
     return scoped
 
 
+def elk_task_ids_in_monitoring_scope(
+    cfg: MonitorConfig,
+    task_ids: list[str],
+    now: datetime,
+    *,
+    follow_up_minutes: int = 0,
+) -> list[str]:
+    """可输出结论的窗：计划开始 ~ 监控结束 + follow_up（与 ELK 调度收尾窗一致）。"""
+    by_id = {t.id: t for t in cfg.tasks}
+    follow = max(0, follow_up_minutes)
+    scoped: list[str] = []
+    for tid in task_ids:
+        task = by_id.get(tid)
+        if task is None:
+            scoped.append(tid)
+            continue
+        start, monitor_end = task_monitor_window(cfg, task, now)
+        sched_end = monitor_end + timedelta(minutes=follow)
+        if start <= now <= sched_end:
+            scoped.append(tid)
+    return scoped
+
+
 def is_elk_job_due(
     now: datetime,
     *,
@@ -146,8 +169,6 @@ def is_elk_job_due(
     follow_up = elk_follow_up_minutes(cron_cfg, interval, dispatcher)
     in_window = active_elk_task_ids(cron_cfg, now, follow_up_minutes=follow_up)
     if not in_window:
-        return False
-    if not elk_task_ids_in_evaluation_scope(cron_cfg, in_window, now):
         return False
     minute_of_day = now.hour * 60 + now.minute
     remainder = minute_of_day % interval

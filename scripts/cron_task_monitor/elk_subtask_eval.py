@@ -3,7 +3,8 @@ from __future__ import annotations
 from datetime import datetime
 
 from .elk_task_schedule import (
-    elk_task_ids_in_evaluation_scope,
+    elk_follow_up_minutes,
+    elk_task_ids_in_monitoring_scope,
     task_monitor_window,
     task_plan_end,
 )
@@ -27,11 +28,12 @@ def _msg_relates_to_task(msg: str, task_id: str, task_name: str) -> bool:
 
 
 def _task_has_start(hits: list[dict], task_id: str, task_name: str) -> bool:
-    prefix = "开始执行任务: "
+    """命中「开始执行」类日志且与任务相关，即视为已开始。"""
+    markers = ("开始执行任务", "开始执行")
     for hit in hits:
         source = hit.get("_source") or {}
         msg = str(source.get("msg") or "")
-        if not msg.startswith(prefix):
+        if not any(marker in msg for marker in markers):
             continue
         if _msg_relates_to_task(msg, task_id, task_name):
             return True
@@ -100,12 +102,16 @@ def evaluate_elk_subtasks(
     ref: datetime,
 ) -> tuple[list[dict], int]:
     """
-  未过预计结束时间的任务不进入评估列表。
-  到达计划结束后：① 未延迟启动 ② 未执行失败 ③ 未执行超时，且已有「任务执行完成」才算 passed。
+  监控窗内子任务均输出结论；预计结束前以「进行中」为主，结束后再做通过/失败判定。
   """
     by_id = {t.id: t for t in cfg.tasks}
+    follow_up = elk_follow_up_minutes(
+        cfg, cfg.schedule_interval_minutes or 5, cfg.schedule_interval_minutes or 5
+    )
     results: list[dict] = []
-    for tid in elk_task_ids_in_evaluation_scope(cfg, task_ids, ref):
+    for tid in elk_task_ids_in_monitoring_scope(
+        cfg, task_ids, ref, follow_up_minutes=follow_up
+    ):
         task = by_id.get(tid)
         if task is None:
             results.append(
@@ -125,36 +131,49 @@ def evaluate_elk_subtasks(
         plan_end = task_plan_end(cfg, task, ref)
         _, monitor_end = task_monitor_window(cfg, task, ref)
 
-        mdimonitor_alerts = _mdimonitor_alerts_for_task(
-            run_mdimonitor_checks(cfg, hits, [tid], ref),
-            tid,
-            task.name,
-        )
-        issues = [a.message for a in mdimonitor_alerts]
-        if mdimonitor_alerts:
-            status = "failed"
-        elif has_failure:
-            status = "failed"
-            if not any("执行失败" in str(x) for x in issues):
+        if ref <= plan_end:
+            issues: list[str] = []
+            if has_failure:
+                status = "failed"
                 issues.append("日志中出现「执行失败」")
-        elif has_complete:
-            status = "passed"
-        elif ref > monitor_end:
-            status = "failed"
-            issues.append(
-                "监控窗口结束前未见「任务执行完成」日志"
-                if has_start
-                else "未见「开始执行任务」日志"
-            )
-        elif has_start:
-            status = "in_progress"
-            issues = []
+            elif has_complete:
+                status = "passed"
+            else:
+                status = "in_progress"
+            unresolved = status == "failed"
+            in_grace = status == "in_progress"
         else:
-            status = "failed"
-            issues.append("未见「开始执行任务」日志")
+            mdimonitor_alerts = _mdimonitor_alerts_for_task(
+                run_mdimonitor_checks(cfg, hits, [tid], ref),
+                tid,
+                task.name,
+            )
+            issues = [a.message for a in mdimonitor_alerts]
+            if mdimonitor_alerts:
+                status = "failed"
+            elif has_failure:
+                status = "failed"
+                if not any("执行失败" in str(x) for x in issues):
+                    issues.append("日志中出现「执行失败」")
+            elif has_complete:
+                status = "passed"
+            elif ref > monitor_end:
+                status = "failed"
+                issues.append(
+                    "监控窗口结束前未见「任务执行完成」日志"
+                    if has_start
+                    else "未见「开始执行任务」日志"
+                )
+            elif has_start:
+                status = "in_progress"
+                issues = []
+            else:
+                status = "failed"
+                issues.append("未见「开始执行任务」日志")
 
-        unresolved = status == "failed"
-        in_grace = status == "in_progress"
+            unresolved = status == "failed"
+            in_grace = status == "in_progress"
+
         results.append(
             {
                 "task_id": tid,

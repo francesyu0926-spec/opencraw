@@ -9,7 +9,11 @@ from zoneinfo import ZoneInfo
 
 from .config_loader import load_config
 from .elk_client import check_elasticsearch
-from .elk_task_schedule import elk_task_ids_in_evaluation_scope
+from .elk_task_schedule import (
+    elk_follow_up_minutes,
+    elk_task_ids_in_evaluation_scope,
+    elk_task_ids_in_monitoring_scope,
+)
 from .elk_subtask_eval import alerts_from_subtask_results, evaluate_elk_subtasks
 from .models import Alert, AlertKind
 from .notifier import send_webhook, should_send_notify
@@ -283,8 +287,14 @@ def run_monitor(args: argparse.Namespace) -> int:
         )
         return 2
 
+    follow_up = elk_follow_up_minutes(
+        cfg, cfg.schedule_interval_minutes or 5, cfg.schedule_interval_minutes or 5
+    )
+    monitor_task_ids = elk_task_ids_in_monitoring_scope(
+        cfg, keywords, now, follow_up_minutes=follow_up
+    )
     eval_task_ids = elk_task_ids_in_evaluation_scope(cfg, keywords, now)
-    if not eval_task_ids:
+    if not monitor_task_ids:
         monitored_tasks = [
             {"id": task.id, "name": task.name}
             for task in cfg.tasks
@@ -301,6 +311,7 @@ def run_monitor(args: argparse.Namespace) -> int:
                         "alert_count": 0,
                         "task_ids": keywords,
                         "evaluation_task_ids": [],
+                        "monitor_task_ids": [],
                         "monitored_tasks": monitored_tasks,
                         "passed_tasks": [],
                         "subtask_results": [],
@@ -313,13 +324,13 @@ def run_monitor(args: argparse.Namespace) -> int:
             )
         else:
             print(
-                f"checked_at={now.isoformat()} evaluation_skipped="
-                f"before_plan_end tasks={','.join(keywords)}"
+                f"checked_at={now.isoformat()} monitoring_skipped="
+                f"outside_window tasks={','.join(keywords)}"
             )
         return 0
 
     hits, err, query_time_range = search_hits(
-        cfg, eval_task_ids, now, simulate_at=bool(args.at)
+        cfg, monitor_task_ids, now, simulate_at=bool(args.at)
     )
 
     if err:
@@ -339,7 +350,7 @@ def run_monitor(args: argparse.Namespace) -> int:
     else:
         hit_count = len(hits)
         subtask_results, elk_exit = evaluate_elk_subtasks(
-            cfg, hits, eval_task_ids, now
+            cfg, hits, monitor_task_ids, now
         )
         alerts = alerts_from_subtask_results(subtask_results)
 
