@@ -49,10 +49,10 @@ class WecomFormatSubtasksTests(unittest.TestCase):
             "exit_code": 1,
             "detail": {
                 "subtask_results": [
-                    {"task_id": "NC_LISTSTOCK_GLANCE_2", "name": "上市股票一览表", "status": "in_progress"},
+                    {"task_id": "NC_LISTSTOCK_GLANCE", "name": "上市股票一览表", "status": "in_progress"},
                 ],
                 "monitored_tasks": [
-                    {"id": "NC_LISTSTOCK_GLANCE_2", "name": "上市股票一览表"},
+                    {"id": "NC_LISTSTOCK_GLANCE", "name": "上市股票一览表"},
                 ],
             },
         }

@@ -13,7 +13,7 @@ from .elk_task_schedule import elk_task_ids_in_evaluation_scope
 from .elk_subtask_eval import alerts_from_subtask_results, evaluate_elk_subtasks
 from .models import Alert, AlertKind
 from .notifier import send_webhook, should_send_notify
-from .quote_utils import msg_keywords_from_config
+from .quote_utils import expand_cli_task_ids, msg_keywords_from_config
 from .quotes_es import build_query_from_config, default_indices, search_hits
 
 MONITOR_MODE = "elk"
@@ -251,7 +251,7 @@ def run_monitor(args: argparse.Namespace) -> int:
             print(msg)
         return 0 if ok else 1
 
-    selected = set(args.task_ids or [])
+    selected = expand_cli_task_ids(cfg, args.task_ids)
     keywords = msg_keywords_from_config(cfg, selected or None)
 
     now = _resolve_now(cfg.timezone, args.at)
@@ -276,7 +276,11 @@ def run_monitor(args: argparse.Namespace) -> int:
         return 0
 
     if not keywords:
-        print("no tasks matched", file=sys.stderr)
+        known = ", ".join(t.id for t in cfg.tasks)
+        print(
+            f"no tasks matched (requested={args.task_ids!r}; configured ids: {known})",
+            file=sys.stderr,
+        )
         return 2
 
     eval_task_ids = elk_task_ids_in_evaluation_scope(cfg, keywords, now)

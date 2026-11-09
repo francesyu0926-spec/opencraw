@@ -11,9 +11,18 @@ from .mdimonitor_checks import run_mdimonitor_checks
 from .models import Alert, AlertKind, MonitorConfig
 
 
+def _task_log_id_aliases(task_id: str) -> tuple[str, ...]:
+    """配置 id 与 ES 文案不一致时互为别名（如 NC_LISTSTOCK_GLANCE ↔ NC_LISTSTOCK_GLANCE_2）。"""
+    if task_id.endswith("_2") and len(task_id) > 2:
+        base = task_id[:-2]
+        return (task_id, base) if base != task_id else (task_id,)
+    return (task_id, f"{task_id}_2")
+
+
 def _msg_relates_to_task(msg: str, task_id: str, task_name: str) -> bool:
-    if task_id in msg:
-        return True
+    for alias in _task_log_id_aliases(task_id):
+        if alias in msg:
+            return True
     return bool(task_name and task_name in msg)
 
 
@@ -58,7 +67,9 @@ def _mdimonitor_alerts_for_task(
     out: list[Alert] = []
     for alert in alerts:
         msg = alert.message or ""
-        if task_id in msg or (task_name and task_name in msg):
+        if any(alias in msg for alias in _task_log_id_aliases(task_id)) or (
+            task_name and task_name in msg
+        ):
             out.append(alert)
     return out
 

@@ -63,6 +63,7 @@ $scriptNames = @(
     "server_diagnose.sh",
     "export_schedule_pdf.py",
     "query_elk_task_logs.py",
+    "print_elk_tasks.py",
     "run_dispatcher_loop.sh",
     "run_health_monitor.ps1",
     "run_monitor_scheduled.ps1",

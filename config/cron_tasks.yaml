@@ -65,43 +65,16 @@ tasks:
     log_dir: "/data/zxt/sync-mongo/logs"
     notify: 阳祥风
 
-  - id: CBD_QUOT_CBND_STK
-    name: 同步可转债
-    scheduled_start: "04:00"
-    expected_end: "04:05"
+  - id: NC_LISTSTOCK_GLANCE
+    name: 上市股票一览表
+    scheduled_start: "01:00"
+    expected_end: "02:00"
     log_index_pattern: "logstash-sync-mongo-*"
     server: "124.220.0.191"
     log_dir: "/data/zxt/sync-mongo/logs"
     notify: 阳祥风
 
   # --- logstash-zxt-terminal-task-* / 172.30.176.135 ---
-  - id: CBD_SECURITY_DICT_2
-    name: 字典表同步
-    scheduled_start: "02:00"
-    expected_end: "02:05"
-    log_index_pattern: "logstash-zxt-terminal-task-*"
-    server: "172.30.176.135"
-    log_dir: "/usr/local/zxt/task/logs"
-    notify: 阳祥风
-
-  - id: CBD_TRD_DT_RECNT_2
-    name: 交易日
-    scheduled_start: "04:00"
-    expected_end: "04:05"
-    log_index_pattern: "logstash-zxt-terminal-task-*"
-    server: "172.30.176.135"
-    log_dir: "/usr/local/zxt/task/logs"
-    notify: 阳祥风
-
-  - id: NC_LISTSTOCK_GLANCE_2
-    name: 上市股票一览表
-    scheduled_start: "01:00"
-    expected_end: "02:00"
-    log_index_pattern: "logstash-zxt-terminal-task-*"
-    server: "172.30.176.135"
-    log_dir: "/usr/local/zxt/task/logs"
-    notify: 阳祥风
-
   - id: NC_TQ_SK_XDRY_2
     name: 复权因子
     scheduled_start: "00:00"
@@ -115,6 +88,33 @@ tasks:
     name: 财务数据
     scheduled_start: "02:40"
     expected_end: "02:45"
+    log_index_pattern: "logstash-zxt-terminal-task-*"
+    server: "172.30.176.135"
+    log_dir: "/usr/local/zxt/task/logs"
+    notify: 阳祥风
+
+  - id: CBD_QUOT_CBND_STK_2
+    name: 同步可转债
+    scheduled_start: "04:00"
+    expected_end: "04:05"
+    log_index_pattern: "logstash-zxt-terminal-task-*"
+    server: "172.30.176.135"
+    log_dir: "/usr/local/zxt/task/logs"
+    notify: 阳祥风
+
+  - id: CBD_SECURITY_DICT_2
+    name: 字典表同步
+    scheduled_start: "02:00"
+    expected_end: "02:05"
+    log_index_pattern: "logstash-zxt-terminal-task-*"
+    server: "172.30.176.135"
+    log_dir: "/usr/local/zxt/task/logs"
+    notify: 阳祥风
+
+  - id: CBD_TRD_DT_RECNT_2
+    name: 交易日
+    scheduled_start: "04:00"
+    expected_end: "04:05"
     log_index_pattern: "logstash-zxt-terminal-task-*"
     server: "172.30.176.135"
     log_dir: "/usr/local/zxt/task/logs"

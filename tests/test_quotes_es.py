@@ -20,7 +20,7 @@ from scripts.cron_task_monitor.quotes_es import build_mdimonitor_query
 
 class TestQuotesEsQuery(unittest.TestCase):
     def test_query_fixture_shape(self) -> None:
-        keywords = ["CBD_QUOT_CBND_STK", "CBD_PUB_BOAR_INFO"]
+        keywords = ["CBD_QUOT_CBND_STK_2", "CBD_PUB_BOAR_INFO"]
         body = build_mdimonitor_query(keywords)
         bool_q = body["query"]["bool"]
         self.assertEqual(len(bool_q["should"]), 2)
@@ -67,7 +67,7 @@ class TestQuotesEsRules(unittest.TestCase):
         self.assertIn("执行超时", alerts[0].message)
 
     def test_task_failed(self) -> None:
-        hits = [{"_source": {"msg": "CBD_QUOT_CBND_STK 执行失败，请检查"}}]
+        hits = [{"_source": {"msg": "CBD_QUOT_CBND_STK_2 执行失败，请检查"}}]
         alerts = check_task_failed(self.cfg, hits, self.keywords)
         self.assertTrue(alerts)
         self.assertIn("执行失败", alerts[0].message)

@@ -18,10 +18,10 @@ def test_long_task_before_plan_end_not_in_scope() -> None:
     """未到预计结束 → 不进入评估列表。"""
     ref = datetime(2026, 11, 9, 1, 5, tzinfo=TZ)
     hits = [
-        _hit("开始执行任务: NC_LISTSTOCK_GLANCE_2,执行时间：01:00:05"),
+        _hit("开始执行任务: NC_LISTSTOCK_GLANCE,执行时间：01:00:05"),
     ]
     results, code = evaluate_elk_subtasks(
-        CFG, hits, ["NC_LISTSTOCK_GLANCE_2"], ref
+        CFG, hits, ["NC_LISTSTOCK_GLANCE"], ref
     )
     assert code == 0
     assert results == []
@@ -44,7 +44,7 @@ def test_passed_when_peer_task_late_but_self_ok() -> None:
     """同批日志里其它任务延迟启动，不应把本子任务判失败。"""
     ref = datetime(2026, 11, 9, 1, 5, tzinfo=TZ)
     hits = [
-        _hit("开始执行任务: NC_LISTSTOCK_GLANCE_2,执行时间：01:30:00"),
+        _hit("开始执行任务: NC_LISTSTOCK_GLANCE,执行时间：01:30:00"),
         _hit("开始执行任务: CBD_PUB_BOAR_INFO,执行时间：01:00:01"),
         _hit("任务执行完成:CBD_PUB_BOAR_INFO,耗时：120秒"),
     ]
@@ -88,14 +88,42 @@ def test_in_progress_in_grace_is_pending_not_fail() -> None:
     assert results[0]["in_grace"] is True
 
 
+def test_liststock_passed_with_plain_log_id() -> None:
+    ref = datetime(2026, 11, 9, 2, 12, tzinfo=TZ)
+    hits = [
+        _hit("开始执行任务: NC_LISTSTOCK_GLANCE,执行时间：01:00:05"),
+        _hit("任务执行完成:NC_LISTSTOCK_GLANCE,耗时：3600秒"),
+    ]
+    results, code = evaluate_elk_subtasks(
+        CFG, hits, ["NC_LISTSTOCK_GLANCE"], ref
+    )
+    assert code == 0
+    assert results[0]["status"] == "passed"
+    assert results[0]["task_id"] == "NC_LISTSTOCK_GLANCE"
+
+
+def test_liststock_es_with__2_suffix_still_matches() -> None:
+    """ES 偶尔带 _2 时仍能与配置 NC_LISTSTOCK_GLANCE 对齐。"""
+    ref = datetime(2026, 11, 9, 2, 12, tzinfo=TZ)
+    hits = [
+        _hit("开始执行任务: NC_LISTSTOCK_GLANCE_2,执行时间：01:00:05"),
+        _hit("任务执行完成:NC_LISTSTOCK_GLANCE_2,耗时：3600秒"),
+    ]
+    results, code = evaluate_elk_subtasks(
+        CFG, hits, ["NC_LISTSTOCK_GLANCE"], ref
+    )
+    assert code == 0
+    assert results[0]["task_id"] == "NC_LISTSTOCK_GLANCE"
+
+
 def test_in_progress_after_monitor_end_is_failed() -> None:
     """超过预计结束+宽限仍未完成 → 未通过。"""
     ref = datetime(2026, 11, 9, 2, 12, tzinfo=TZ)
     hits = [
-        _hit("开始执行任务: NC_LISTSTOCK_GLANCE_2,执行时间：01:00:05"),
+        _hit("开始执行任务: NC_LISTSTOCK_GLANCE,执行时间：01:00:05"),
     ]
     results, code = evaluate_elk_subtasks(
-        CFG, hits, ["NC_LISTSTOCK_GLANCE_2"], ref
+        CFG, hits, ["NC_LISTSTOCK_GLANCE"], ref
     )
     assert code == 1
     assert results[0]["status"] == "failed"

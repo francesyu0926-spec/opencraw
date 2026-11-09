@@ -45,7 +45,7 @@ def test_trading_day_window_until_0415() -> None:
 def test_active_ids_at_0110_includes_multiple() -> None:
     ids = active_elk_task_ids(CFG, _at(1, 10))
     assert "CBD_PUB_BOAR_INFO" in ids
-    assert "NC_LISTSTOCK_GLANCE_2" in ids
+    assert "NC_LISTSTOCK_GLANCE" in ids
     assert "CBD_TRD_DT_RECNT_2" not in ids
     assert "NC_TQ_SK_XDRY_2" not in ids
 
@@ -63,7 +63,7 @@ def test_follow_up_window_at_0220_schedules_dict_task() -> None:
 def test_no_evaluation_scope_at_0200_boundary() -> None:
     window = active_elk_task_ids(CFG, _at(2, 0))
     scoped = elk_task_ids_in_evaluation_scope(CFG, window, _at(2, 0))
-    assert "NC_LISTSTOCK_GLANCE_2" not in scoped
+    assert "NC_LISTSTOCK_GLANCE" not in scoped
     assert scoped == []
 
 
@@ -73,9 +73,9 @@ def test_elk_job_not_due_at_noon() -> None:
 
 def test_evaluation_scope_excludes_before_plan_end() -> None:
     window = active_elk_task_ids(CFG, _at(1, 5))
-    assert "NC_LISTSTOCK_GLANCE_2" in window
+    assert "NC_LISTSTOCK_GLANCE" in window
     scoped = elk_task_ids_in_evaluation_scope(CFG, window, _at(1, 5))
-    assert "NC_LISTSTOCK_GLANCE_2" not in scoped
+    assert "NC_LISTSTOCK_GLANCE" not in scoped
     assert "CBD_PUB_BOAR_INFO" in scoped
 
 
