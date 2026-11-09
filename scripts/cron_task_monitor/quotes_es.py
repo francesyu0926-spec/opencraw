@@ -48,11 +48,17 @@ def build_query_from_config(
     ref: datetime | None = None,
     *,
     query_end: datetime | None = None,
+    task_ids_for_range: list[str] | None = None,
 ) -> dict[str, Any]:
     from .time_window import resolve_query_timestamp_range
 
     es = cfg.elasticsearch or ElasticsearchConfig()
-    gte, lte = resolve_query_timestamp_range(cfg, ref, query_end=query_end)
+    gte, lte = resolve_query_timestamp_range(
+        cfg,
+        ref,
+        query_end=query_end,
+        task_ids=task_ids_for_range or msg_keywords,
+    )
     return build_mdimonitor_query(
         msg_keywords,
         message_field=es.message_field or "msg",
@@ -99,12 +105,22 @@ def search_hits(
         query_end = ref.astimezone(tz)
     else:
         query_end = datetime.now(tz)
+    task_ids_for_range = list(msg_keywords)
     body = build_query_from_config(
-        cfg, msg_keywords, ref, query_end=query_end
+        cfg,
+        msg_keywords,
+        ref,
+        query_end=query_end,
+        task_ids_for_range=task_ids_for_range,
     )
     from .time_window import resolve_query_timestamp_range
 
-    gte, lte = resolve_query_timestamp_range(cfg, ref, query_end=query_end)
+    gte, lte = resolve_query_timestamp_range(
+        cfg,
+        ref,
+        query_end=query_end,
+        task_ids=task_ids_for_range,
+    )
     qtr = {"gte": gte, "lte": lte, "timezone": cfg.timezone}
     indices = default_indices(cfg)
 

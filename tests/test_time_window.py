@@ -22,6 +22,21 @@ class TimeWindowTests(unittest.TestCase):
         self.assertEqual(cfg.query_time_mode, "rolling_in_batch")
         self.assertEqual(cfg.schedule_interval_minutes, 15)
 
+    def test_follow_up_at_0220_widens_gte_to_earliest_task_start(self) -> None:
+        cfg = load_config("config/cron_tasks.yaml")
+        tz = ZoneInfo(cfg.timezone)
+        ref = datetime(2026, 11, 9, 2, 20, tzinfo=tz)
+        gte, lte = resolve_query_timestamp_range(
+            cfg,
+            ref,
+            task_ids=["CBD_SECURITY_DICT", "NC_LISTSTOCK_GLANCE"],
+        )
+        self.assertIn("2026-11-09T01:00:00", gte)
+        self.assertIn("2026-11-09T02:20:00", lte)
+        narrow_gte, _ = resolve_query_timestamp_range(cfg, ref)
+        self.assertIn("2026-11-09T02:05:00", narrow_gte)
+        self.assertLess(gte, narrow_gte)
+
     def test_after_batch_window_still_rolling_15m(self) -> None:
         cfg = load_config("config/cron_tasks.yaml")
         tz = ZoneInfo(cfg.timezone)
