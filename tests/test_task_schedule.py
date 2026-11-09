@@ -15,7 +15,7 @@ EXPECTED = {
     "CBD_TRD_DT_RECNT": ("04:00", "04:05"),
     "NC_LISTSTOCK_GLANCE": ("01:00", "02:00"),
     "NC_TQ_SK_XDRY": ("00:00", "00:05"),
-    "CBD_BD_FIN_DATA": ("04:00", "04:05"),
+    "CBD_BD_FIN_DATA": ("02:40", "02:45"),
     "CBD_QUOT_CBND_STK": ("04:00", "04:05"),
 }
 

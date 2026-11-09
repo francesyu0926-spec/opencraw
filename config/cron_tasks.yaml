@@ -113,8 +113,8 @@ tasks:
 
   - id: CBD_BD_FIN_DATA
     name: 财务数据
-    scheduled_start: "04:00"
-    expected_end: "04:05"
+    scheduled_start: "02:40"
+    expected_end: "02:45"
     log_index_pattern: "logstash-zxt-terminal-task-*"
     server: "172.30.176.135"
     log_dir: "/usr/local/zxt/task/logs"
