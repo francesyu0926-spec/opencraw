@@ -2,7 +2,11 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from .elk_task_schedule import task_monitor_window, task_plan_end
+from .elk_task_schedule import (
+    elk_task_ids_in_evaluation_scope,
+    task_monitor_window,
+    task_plan_end,
+)
 from .mdimonitor_checks import run_mdimonitor_checks
 from .models import Alert, AlertKind, MonitorConfig
 
@@ -62,13 +66,12 @@ def evaluate_elk_subtasks(
     ref: datetime,
 ) -> tuple[list[dict], int]:
     """
-  计划结束前不套用告警规则，一律 in_progress。
+  未过预计结束时间的任务不进入评估列表。
   到达计划结束后：① 未延迟启动 ② 未执行失败 ③ 未执行超时，且已有「任务执行完成」才算 passed。
   """
     by_id = {t.id: t for t in cfg.tasks}
     results: list[dict] = []
-
-    for tid in task_ids:
+    for tid in elk_task_ids_in_evaluation_scope(cfg, task_ids, ref):
         task = by_id.get(tid)
         if task is None:
             results.append(
@@ -86,26 +89,22 @@ def evaluate_elk_subtasks(
         plan_end = task_plan_end(cfg, task, ref)
         _, monitor_end = task_monitor_window(cfg, task, ref)
 
-        if ref < plan_end:
+        mdimonitor_alerts = _mdimonitor_alerts_for_task(
+            run_mdimonitor_checks(cfg, hits, [tid], ref),
+            tid,
+            task.name,
+        )
+        issues = [a.message for a in mdimonitor_alerts]
+        if mdimonitor_alerts:
+            status = "failed"
+        elif has_complete:
+            status = "passed"
+        elif ref > monitor_end:
+            status = "failed"
+            issues.append("监控窗口结束前未见「任务执行完成」日志")
+        else:
             status = "in_progress"
             issues = []
-        else:
-            mdimonitor_alerts = _mdimonitor_alerts_for_task(
-                run_mdimonitor_checks(cfg, hits, [tid], ref),
-                tid,
-                task.name,
-            )
-            issues = [a.message for a in mdimonitor_alerts]
-            if mdimonitor_alerts:
-                status = "failed"
-            elif has_complete:
-                status = "passed"
-            elif ref > monitor_end:
-                status = "failed"
-                issues.append("监控窗口结束前未见「任务执行完成」日志")
-            else:
-                status = "in_progress"
-                issues = []
 
         unresolved = status == "failed" or (
             status == "in_progress" and ref >= plan_end

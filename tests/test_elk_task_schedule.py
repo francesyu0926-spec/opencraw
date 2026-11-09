@@ -7,6 +7,7 @@ from zoneinfo import ZoneInfo
 from scripts.cron_task_monitor.config_loader import load_config
 from scripts.cron_task_monitor.elk_task_schedule import (
     active_elk_task_ids,
+    elk_task_ids_in_evaluation_scope,
     is_elk_job_due,
     is_task_in_monitor_window,
     task_monitor_window,
@@ -49,9 +50,17 @@ def test_elk_job_not_due_at_noon() -> None:
     assert not is_elk_job_due(_at(12, 0), cron_cfg=CFG, dispatcher_interval_minutes=5)
 
 
+def test_evaluation_scope_excludes_before_plan_end() -> None:
+    window = active_elk_task_ids(CFG, _at(1, 5))
+    assert "NC_LISTSTOCK_GLANCE" in window
+    scoped = elk_task_ids_in_evaluation_scope(CFG, window, _at(1, 5))
+    assert "NC_LISTSTOCK_GLANCE" not in scoped
+    assert "CBD_PUB_BOAR_INFO" in scoped
+
+
 def test_elk_job_due_on_15min_tick() -> None:
     kwargs = dict(cron_cfg=CFG, dispatcher_interval_minutes=5, job_interval_minutes=15)
-    assert is_elk_job_due(_at(1, 0), **kwargs)
+    assert not is_elk_job_due(_at(1, 0), **kwargs)
     assert is_elk_job_due(_at(1, 5), **kwargs)
     assert not is_elk_job_due(_at(1, 10), **kwargs)
     assert is_elk_job_due(_at(1, 15), **kwargs)

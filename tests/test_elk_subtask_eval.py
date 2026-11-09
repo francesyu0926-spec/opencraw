@@ -14,8 +14,8 @@ def _hit(msg: str) -> dict:
     return {"_source": {"msg": msg}}
 
 
-def test_long_task_in_progress_at_0105() -> None:
-    """01:05 仅启动、未到 02:00 结束 → 进行中，不算成功。"""
+def test_long_task_before_plan_end_not_in_scope() -> None:
+    """未到预计结束 → 不进入评估列表。"""
     ref = datetime(2026, 11, 9, 1, 5, tzinfo=TZ)
     hits = [
         _hit("开始执行任务: NC_LISTSTOCK_GLANCE,执行时间：01:00:05"),
@@ -24,9 +24,7 @@ def test_long_task_in_progress_at_0105() -> None:
         CFG, hits, ["NC_LISTSTOCK_GLANCE"], ref
     )
     assert code == 0
-    assert len(results) == 1
-    assert results[0]["status"] == "in_progress"
-    assert results[0]["unresolved"] is False
+    assert results == []
 
 
 def test_short_task_passed_when_complete_and_no_violations() -> None:
@@ -57,15 +55,12 @@ def test_passed_when_peer_task_late_but_self_ok() -> None:
     assert results[0]["status"] == "passed"
 
 
-def test_failure_log_before_plan_end_is_in_progress() -> None:
-    """计划结束前即便有失败日志，也不套告警规则。"""
+def test_before_plan_end_not_evaluated() -> None:
     ref = datetime(2026, 11, 9, 1, 2, tzinfo=TZ)
     hits = [_hit("CBD_BOAR_INFO 执行失败")]
     results, code = evaluate_elk_subtasks(CFG, hits, ["CBD_BOAR_INFO"], ref)
     assert code == 0
-    assert results[0]["status"] == "in_progress"
-    assert results[0]["unresolved"] is False
-    assert results[0]["issues"] == []
+    assert results == []
 
 
 def test_in_progress_after_plan_end_counts_unresolved() -> None:
@@ -90,7 +85,7 @@ def test_failed_when_execution_failed_in_log() -> None:
     assert results[0]["status"] == "failed"
 
 
-def test_complete_before_plan_end_stays_in_progress() -> None:
+def test_complete_before_plan_end_not_evaluated() -> None:
     ref = datetime(2026, 11, 9, 1, 2, tzinfo=TZ)
     hits = [
         _hit("开始执行任务: CBD_PUB_BOAR_INFO,执行时间：01:00:01"),
@@ -100,5 +95,4 @@ def test_complete_before_plan_end_stays_in_progress() -> None:
         CFG, hits, ["CBD_PUB_BOAR_INFO"], ref
     )
     assert code == 0
-    assert results[0]["status"] == "in_progress"
-    assert results[0]["unresolved"] is False
+    assert results == []

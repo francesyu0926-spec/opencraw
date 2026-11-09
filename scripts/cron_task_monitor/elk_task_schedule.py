@@ -76,6 +76,22 @@ def active_elk_task_ids(cfg: MonitorConfig, now: datetime) -> list[str]:
     ]
 
 
+def elk_task_ids_in_evaluation_scope(
+    cfg: MonitorConfig, task_ids: list[str], now: datetime
+) -> list[str]:
+    """未过预计结束时间的进行中任务不在评估范围内。"""
+    by_id = {t.id: t for t in cfg.tasks}
+    scoped: list[str] = []
+    for tid in task_ids:
+        task = by_id.get(tid)
+        if task is None:
+            scoped.append(tid)
+            continue
+        if now >= task_plan_end(cfg, task, now):
+            scoped.append(tid)
+    return scoped
+
+
 def is_elk_job_due(
     now: datetime,
     *,
@@ -87,7 +103,10 @@ def is_elk_job_due(
     """ELK job：batch 窗内有子任务在监控窗内，并按 job 间隔（默认 15 分钟）对齐。"""
     if not job_enabled:
         return False
-    if not active_elk_task_ids(cron_cfg, now):
+    in_window = active_elk_task_ids(cron_cfg, now)
+    if not in_window:
+        return False
+    if not elk_task_ids_in_evaluation_scope(cron_cfg, in_window, now):
         return False
     interval = max(
         1,

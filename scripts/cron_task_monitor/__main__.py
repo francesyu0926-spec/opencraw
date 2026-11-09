@@ -9,6 +9,7 @@ from zoneinfo import ZoneInfo
 
 from .config_loader import load_config
 from .elk_client import check_elasticsearch
+from .elk_task_schedule import elk_task_ids_in_evaluation_scope
 from .elk_subtask_eval import alerts_from_subtask_results, evaluate_elk_subtasks
 from .models import Alert, AlertKind
 from .notifier import send_webhook, should_send_notify
@@ -278,8 +279,43 @@ def run_monitor(args: argparse.Namespace) -> int:
         print("no tasks matched", file=sys.stderr)
         return 2
 
+    eval_task_ids = elk_task_ids_in_evaluation_scope(cfg, keywords, now)
+    if not eval_task_ids:
+        monitored_tasks = [
+            {"id": task.id, "name": task.name}
+            for task in cfg.tasks
+            if task.id in keywords
+        ]
+        if args.json:
+            print(
+                json.dumps(
+                    {
+                        "checked_at": now.isoformat(),
+                        "timezone": cfg.timezone,
+                        "mode": MONITOR_MODE,
+                        "hit_count": 0,
+                        "alert_count": 0,
+                        "task_ids": keywords,
+                        "evaluation_task_ids": [],
+                        "monitored_tasks": monitored_tasks,
+                        "passed_tasks": [],
+                        "subtask_results": [],
+                        "query_time_range": None,
+                        "alerts": [],
+                    },
+                    ensure_ascii=False,
+                    indent=2,
+                )
+            )
+        else:
+            print(
+                f"checked_at={now.isoformat()} evaluation_skipped="
+                f"before_plan_end tasks={','.join(keywords)}"
+            )
+        return 0
+
     hits, err, query_time_range = search_hits(
-        cfg, keywords, now, simulate_at=bool(args.at)
+        cfg, eval_task_ids, now, simulate_at=bool(args.at)
     )
 
     if err:
@@ -298,7 +334,9 @@ def run_monitor(args: argparse.Namespace) -> int:
         elk_exit = 1
     else:
         hit_count = len(hits)
-        subtask_results, elk_exit = evaluate_elk_subtasks(cfg, hits, keywords, now)
+        subtask_results, elk_exit = evaluate_elk_subtasks(
+            cfg, hits, eval_task_ids, now
+        )
         alerts = alerts_from_subtask_results(subtask_results)
 
     notify_ok: bool | None = None
@@ -318,7 +356,7 @@ def run_monitor(args: argparse.Namespace) -> int:
     monitored_tasks = [
         {"id": task.id, "name": task.name}
         for task in cfg.tasks
-        if task.id in keywords
+        if task.id in eval_task_ids
     ]
     if not err:
         passed_tasks = [
@@ -338,6 +376,7 @@ def run_monitor(args: argparse.Namespace) -> int:
             "hit_count": hit_count,
             "alert_count": len(alerts),
             "task_ids": keywords,
+            "evaluation_task_ids": eval_task_ids,
             "monitored_tasks": monitored_tasks,
             "passed_tasks": passed_tasks,
             "subtask_results": subtask_results,
