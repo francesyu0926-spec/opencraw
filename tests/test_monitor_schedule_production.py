@@ -63,6 +63,28 @@ class ProductionScheduleTests(unittest.TestCase):
         self.assertFalse(self.cfg.jobs["elk"].weekdays_only)
         self.assertFalse(self.cfg.jobs["health"].weekdays_only)
 
+    def test_health_after_last_daily_slot_skipped_by_scheduler(self) -> None:
+        import io
+        import json
+        from contextlib import redirect_stdout
+        from pathlib import Path
+
+        from scripts.cron_task_monitor.schedule_runner import run_scheduled_monitors
+
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            run_scheduled_monitors(
+                Path("config/monitor_schedule.production.yaml"),
+                at="2026-11-06T23:39:00+08:00",
+                as_json=True,
+                dry_run=True,
+                notify=False,
+                no_notify=True,
+            )
+        payload = json.loads(buf.getvalue())
+        by_reason = {s["job"]: s["reason"] for s in payload["jobs_skipped"]}
+        self.assertEqual(by_reason.get("health"), "after_daily_last_slot")
+
     def test_weekend_skips_ws_and_writing_jobs(self) -> None:
         import io
         import json

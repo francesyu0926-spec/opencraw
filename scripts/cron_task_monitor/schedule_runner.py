@@ -21,7 +21,11 @@ from .wecom_format import (
     subtasks_display_for_job,
 )
 from .wecom_diag import warn_missing_webhooks
-from .daily_boundary import daily_boundary_kind
+from .daily_boundary import (
+    daily_boundary_kind,
+    is_after_last_daily_slot,
+    is_before_first_daily_slot,
+)
 from .schedule_config import (
     ScheduledJob,
     is_weekend,
@@ -356,6 +360,13 @@ def run_scheduled_monitors(
         if job.weekdays_only and is_weekend(now):
             skipped.append({"job": job_id, "reason": "weekend"})
             continue
+        if job_id in ("health", "ws") and not force:
+            if is_before_first_daily_slot(now, job):
+                skipped.append({"job": job_id, "reason": "before_daily_first_slot"})
+                continue
+            if is_after_last_daily_slot(now, job):
+                skipped.append({"job": job_id, "reason": "after_daily_last_slot"})
+                continue
         if force and job_id in ("elk", "writing"):
             due = True
         elif job_id == "elk" and elk_cron_cfg is not None:

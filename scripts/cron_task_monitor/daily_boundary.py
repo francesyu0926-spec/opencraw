@@ -58,6 +58,26 @@ def scheduled_slot_minute(now: datetime, interval_minutes: int) -> int:
     return (m // interval) * interval
 
 
+def minute_of_day(now: datetime) -> int:
+    return now.hour * 60 + now.minute
+
+
+def is_before_first_daily_slot(now: datetime, job: ScheduledJob) -> bool:
+    """当日首个计划时刻之前（相对 interval 对齐的 due 列表）。"""
+    slots = _due_slot_minutes(job)
+    if not slots:
+        return False
+    return minute_of_day(now) < slots[0]
+
+
+def is_after_last_daily_slot(now: datetime, job: ScheduledJob) -> bool:
+    """当日末个计划时刻之后。"""
+    slots = _due_slot_minutes(job)
+    if not slots:
+        return False
+    return minute_of_day(now) > slots[-1]
+
+
 def daily_boundary_kind(now: datetime, job: ScheduledJob) -> str | None:
     """
     Return 'first' or 'last' if `now` is the first/last due slot of the day for this job.
