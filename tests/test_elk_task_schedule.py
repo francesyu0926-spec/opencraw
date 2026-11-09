@@ -49,6 +49,14 @@ def test_active_ids_at_0110_includes_multiple() -> None:
     assert "NC_TQ_SK_XDRY" not in ids
 
 
+def test_follow_up_window_at_0220_schedules_dict_task() -> None:
+    """监控窗结束后 follow_up 内仍触发 ELK（便于收尾企微）。"""
+    kwargs = dict(cron_cfg=CFG, dispatcher_interval_minutes=5, job_interval_minutes=15)
+    assert is_elk_job_due(_at(2, 20), **kwargs)
+    window = active_elk_task_ids(CFG, _at(2, 20), follow_up_minutes=15)
+    assert "CBD_SECURITY_DICT" in window
+
+
 def test_no_evaluation_scope_at_0200_boundary() -> None:
     window = active_elk_task_ids(CFG, _at(2, 0))
     scoped = elk_task_ids_in_evaluation_scope(CFG, window, _at(2, 0))

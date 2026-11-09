@@ -243,7 +243,14 @@ def _run_single_job(
                     probe = probe.astimezone(tz)
             else:
                 probe = datetime.now(tz)
-            task_ids = active_elk_task_ids(cron_cfg, probe)
+            elk_interval = int(
+                kwargs.get("elk_job_interval_minutes")
+                or cron_cfg.schedule_interval_minutes
+                or 15
+            )
+            task_ids = active_elk_task_ids(
+                cron_cfg, probe, follow_up_minutes=elk_interval
+            )
             if kwargs.get("elk_force_all_tasks"):
                 task_ids = None  # --force：检全部任务（联调）
             elif not task_ids:
@@ -292,6 +299,8 @@ def _run_single_job(
             base["elk_force_all_tasks"] = elk_force_all_tasks
             base["writing_force_all"] = writing_force_all
             base["suppress_job_wecom"] = suppress_job_wecom
+        if job.id == "elk":
+            base["elk_job_interval_minutes"] = job.interval_minutes
         return base
 
     if as_json:

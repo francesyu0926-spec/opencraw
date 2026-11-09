@@ -67,12 +67,30 @@ def is_task_in_monitor_window(
     return start <= now <= monitor_end
 
 
-def active_elk_task_ids(cfg: MonitorConfig, now: datetime) -> list[str]:
-    """当前时刻应纳入 ELK 巡检的任务 ID（按各任务计划时间，非整表 15 分钟）。"""
+def is_task_elk_schedulable(
+    cfg: MonitorConfig,
+    task: TaskDefinition,
+    now: datetime,
+    *,
+    follow_up_minutes: int = 0,
+) -> bool:
+    """计划开始～监控结束；结束后另保留 follow_up 分钟以便收尾评估、发企微。"""
+    if not _in_hhmm_window(now, cfg.batch_window_start, cfg.batch_window_end):
+        return False
+    start, monitor_end = task_monitor_window(cfg, task, now)
+    sched_end = monitor_end + timedelta(minutes=max(0, follow_up_minutes))
+    return start <= now <= sched_end
+
+
+def active_elk_task_ids(
+    cfg: MonitorConfig, now: datetime, *, follow_up_minutes: int = 0
+) -> list[str]:
+    """当前时刻应触发 ELK 的任务 ID（含监控窗结束后的 follow_up 收尾轮）。"""
+    follow = max(0, follow_up_minutes)
     return [
         task.id
         for task in cfg.tasks
-        if is_task_in_monitor_window(cfg, task, now)
+        if is_task_elk_schedulable(cfg, task, now, follow_up_minutes=follow)
     ]
 
 
@@ -103,17 +121,17 @@ def is_elk_job_due(
     """ELK job：batch 窗内有子任务在监控窗内，并按 job 间隔（默认 15 分钟）对齐。"""
     if not job_enabled:
         return False
-    in_window = active_elk_task_ids(cron_cfg, now)
-    if not in_window:
-        return False
-    if not elk_task_ids_in_evaluation_scope(cron_cfg, in_window, now):
-        return False
     interval = max(
         1,
         job_interval_minutes
         if job_interval_minutes is not None
         else cron_cfg.schedule_interval_minutes or 15,
     )
+    in_window = active_elk_task_ids(cron_cfg, now, follow_up_minutes=interval)
+    if not in_window:
+        return False
+    if not elk_task_ids_in_evaluation_scope(cron_cfg, in_window, now):
+        return False
     dispatcher = max(1, dispatcher_interval_minutes)
     minute_of_day = now.hour * 60 + now.minute
     remainder = minute_of_day % interval
