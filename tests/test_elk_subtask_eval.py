@@ -63,6 +63,16 @@ def test_before_plan_end_not_evaluated() -> None:
     assert results == []
 
 
+def test_grace_without_start_log_is_failed_not_in_progress() -> None:
+    ref = datetime(2026, 11, 9, 2, 15, tzinfo=TZ)
+    results, code = evaluate_elk_subtasks(
+        CFG, [], ["CBD_SECURITY_DICT"], ref
+    )
+    assert code == 1
+    assert results[0]["status"] == "failed"
+    assert "未见「开始执行任务」日志" in results[0]["issues"][0]
+
+
 def test_in_progress_in_grace_is_pending_not_fail() -> None:
     """预计结束后的宽限期内 → exit 2，不算未通过。"""
     ref = datetime(2026, 11, 9, 2, 15, tzinfo=TZ)
@@ -98,6 +108,20 @@ def test_failed_when_execution_failed_in_log() -> None:
     results, code = evaluate_elk_subtasks(CFG, hits, ["CBD_BOAR_INFO"], ref)
     assert code == 1
     assert results[0]["status"] == "failed"
+
+
+def test_failure_in_grace_not_in_progress() -> None:
+    ref = datetime(2026, 11, 9, 2, 10, tzinfo=TZ)
+    hits = [
+        _hit("开始执行任务: CBD_SECURITY_DICT,执行时间：02:00:01"),
+        _hit("CBD_SECURITY_DICT 执行失败，请检查"),
+    ]
+    results, code = evaluate_elk_subtasks(
+        CFG, hits, ["CBD_SECURITY_DICT"], ref
+    )
+    assert code == 1
+    assert results[0]["status"] == "failed"
+    assert results[0]["unresolved"] is True
 
 
 def test_complete_before_plan_end_not_evaluated() -> None:

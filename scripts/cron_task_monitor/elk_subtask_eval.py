@@ -17,6 +17,29 @@ def _msg_relates_to_task(msg: str, task_id: str, task_name: str) -> bool:
     return bool(task_name and task_name in msg)
 
 
+def _task_has_start(hits: list[dict], task_id: str, task_name: str) -> bool:
+    prefix = "开始执行任务: "
+    for hit in hits:
+        source = hit.get("_source") or {}
+        msg = str(source.get("msg") or "")
+        if not msg.startswith(prefix):
+            continue
+        if _msg_relates_to_task(msg, task_id, task_name):
+            return True
+    return False
+
+
+def _task_has_failure(hits: list[dict], task_id: str, task_name: str) -> bool:
+    for hit in hits:
+        source = hit.get("_source") or {}
+        msg = str(source.get("msg") or "")
+        if "执行失败" not in msg:
+            continue
+        if _msg_relates_to_task(msg, task_id, task_name):
+            return True
+    return False
+
+
 def _task_has_completion(hits: list[dict], task_id: str, task_name: str) -> bool:
     for hit in hits:
         source = hit.get("_source") or {}
@@ -85,6 +108,8 @@ def evaluate_elk_subtasks(
             )
             continue
 
+        has_start = _task_has_start(hits, tid, task.name)
+        has_failure = _task_has_failure(hits, tid, task.name)
         has_complete = _task_has_completion(hits, tid, task.name)
         plan_end = task_plan_end(cfg, task, ref)
         _, monitor_end = task_monitor_window(cfg, task, ref)
@@ -97,14 +122,25 @@ def evaluate_elk_subtasks(
         issues = [a.message for a in mdimonitor_alerts]
         if mdimonitor_alerts:
             status = "failed"
+        elif has_failure:
+            status = "failed"
+            if not any("执行失败" in str(x) for x in issues):
+                issues.append("日志中出现「执行失败」")
         elif has_complete:
             status = "passed"
         elif ref > monitor_end:
             status = "failed"
-            issues.append("监控窗口结束前未见「任务执行完成」日志")
-        else:
+            issues.append(
+                "监控窗口结束前未见「任务执行完成」日志"
+                if has_start
+                else "未见「开始执行任务」日志"
+            )
+        elif has_start:
             status = "in_progress"
             issues = []
+        else:
+            status = "failed"
+            issues.append("未见「开始执行任务」日志")
 
         unresolved = status == "failed"
         in_grace = status == "in_progress"
