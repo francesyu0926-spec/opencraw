@@ -150,6 +150,8 @@ def failure_note_for_job(job_id: str, info: dict) -> str:
             if not isinstance(row, dict):
                 continue
             st = row.get("status")
+            if st == "in_progress" and not row.get("unresolved", False):
+                continue
             if st not in ("failed", "in_progress"):
                 continue
             name = row.get("name") or row.get("task_id") or "ELK任务"

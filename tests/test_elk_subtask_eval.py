@@ -23,9 +23,10 @@ def test_long_task_in_progress_at_0105() -> None:
     results, code = evaluate_elk_subtasks(
         CFG, hits, ["NC_LISTSTOCK_GLANCE"], ref
     )
-    assert code == 1
+    assert code == 0
     assert len(results) == 1
     assert results[0]["status"] == "in_progress"
+    assert results[0]["unresolved"] is False
 
 
 def test_short_task_passed_when_complete_and_no_violations() -> None:
@@ -61,9 +62,24 @@ def test_failure_log_before_plan_end_is_in_progress() -> None:
     ref = datetime(2026, 11, 9, 1, 2, tzinfo=TZ)
     hits = [_hit("CBD_BOAR_INFO 执行失败")]
     results, code = evaluate_elk_subtasks(CFG, hits, ["CBD_BOAR_INFO"], ref)
+    assert code == 0
+    assert results[0]["status"] == "in_progress"
+    assert results[0]["unresolved"] is False
+    assert results[0]["issues"] == []
+
+
+def test_in_progress_after_plan_end_counts_unresolved() -> None:
+    """超过预计结束仍未完成 → 算未通过。"""
+    ref = datetime(2026, 11, 9, 2, 1, tzinfo=TZ)
+    hits = [
+        _hit("开始执行任务: NC_LISTSTOCK_GLANCE,执行时间：01:00:05"),
+    ]
+    results, code = evaluate_elk_subtasks(
+        CFG, hits, ["NC_LISTSTOCK_GLANCE"], ref
+    )
     assert code == 1
     assert results[0]["status"] == "in_progress"
-    assert results[0]["issues"] == []
+    assert results[0]["unresolved"] is True
 
 
 def test_failed_when_execution_failed_in_log() -> None:
@@ -83,5 +99,6 @@ def test_complete_before_plan_end_stays_in_progress() -> None:
     results, code = evaluate_elk_subtasks(
         CFG, hits, ["CBD_PUB_BOAR_INFO"], ref
     )
-    assert code == 1
+    assert code == 0
     assert results[0]["status"] == "in_progress"
+    assert results[0]["unresolved"] is False
