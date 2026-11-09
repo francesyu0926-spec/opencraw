@@ -132,12 +132,11 @@ def evaluate_elk_subtasks(
         _, monitor_end = task_monitor_window(cfg, task, ref)
 
         if ref <= plan_end:
+            # 预计结束前只判失败或进行中，不因历史「完成」日志提前通过
             issues: list[str] = []
             if has_failure:
                 status = "failed"
                 issues.append("日志中出现「执行失败」")
-            elif has_complete:
-                status = "passed"
             else:
                 status = "in_progress"
             unresolved = status == "failed"

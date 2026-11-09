@@ -151,7 +151,8 @@ def test_failure_in_grace_not_in_progress() -> None:
     assert results[0]["unresolved"] is True
 
 
-def test_complete_before_plan_end_can_pass() -> None:
+def test_complete_before_plan_end_stays_in_progress() -> None:
+    """预计结束前即便有完成日志（含昨日残留）也不提前判通过。"""
     ref = datetime(2026, 11, 9, 1, 2, tzinfo=TZ)
     hits = [
         _hit("开始执行任务: CBD_PUB_BOAR_INFO,执行时间：01:00:01"),
@@ -160,8 +161,18 @@ def test_complete_before_plan_end_can_pass() -> None:
     results, code = evaluate_elk_subtasks(
         CFG, hits, ["CBD_PUB_BOAR_INFO"], ref
     )
-    assert code == 0
-    assert results[0]["status"] == "passed"
+    assert code == 2
+    assert results[0]["status"] == "in_progress"
+
+
+def test_stale_complete_without_start_before_plan_end_in_progress() -> None:
+    ref = datetime(2026, 11, 9, 1, 0, tzinfo=TZ)
+    hits = [_hit("任务执行完成:NC_LISTSTOCK_GLANCE,耗时：3600秒")]
+    results, code = evaluate_elk_subtasks(
+        CFG, hits, ["NC_LISTSTOCK_GLANCE"], ref
+    )
+    assert code == 2
+    assert results[0]["status"] == "in_progress"
 
 
 def test_start_log_without_colon_prefix_counts_as_started() -> None:
