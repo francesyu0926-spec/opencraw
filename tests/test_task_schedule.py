@@ -12,7 +12,7 @@ EXPECTED = {
     "CBD_BOAR_INFO": ("01:00", "01:05"),
     "CBD_QUOT_STK_ISS": ("01:00", "01:05"),
     "CBD_SECURITY_DICT": ("04:00", "04:05"),
-    "CBD_TRD_DT_RECNT": ("01:00", "02:00"),
+    "CBD_TRD_DT_RECNT": ("04:00", "04:05"),
     "NC_LISTSTOCK_GLANCE": ("01:00", "02:00"),
     "NC_TQ_SK_XDRY": ("02:40", "02:45"),
     "CBD_BD_FIN_DATA": ("04:00", "04:05"),

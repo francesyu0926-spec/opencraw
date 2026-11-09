@@ -87,7 +87,7 @@ def elk_task_ids_in_evaluation_scope(
         if task is None:
             scoped.append(tid)
             continue
-        if now >= task_plan_end(cfg, task, now):
+        if now > task_plan_end(cfg, task, now):
             scoped.append(tid)
     return scoped
 

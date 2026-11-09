@@ -86,8 +86,8 @@ tasks:
 
   - id: CBD_TRD_DT_RECNT
     name: 交易日
-    scheduled_start: "01:00"
-    expected_end: "02:00"
+    scheduled_start: "04:00"
+    expected_end: "04:05"
     log_index_pattern: "logstash-zxt-terminal-task-*"
     server: "172.30.176.135"
     log_dir: "/usr/local/zxt/task/logs"

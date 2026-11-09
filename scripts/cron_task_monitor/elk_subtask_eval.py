@@ -107,7 +107,7 @@ def evaluate_elk_subtasks(
             issues = []
 
         unresolved = status == "failed" or (
-            status == "in_progress" and ref >= plan_end
+            status == "in_progress" and ref > plan_end
         )
         results.append(
             {

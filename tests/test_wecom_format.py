@@ -13,6 +13,20 @@ from scripts.cron_task_monitor.wecom_format import (
 
 
 class WecomFormatSubtasksTests(unittest.TestCase):
+    def test_elk_subtasks_empty_when_only_failed_results(self) -> None:
+        info = {
+            "exit_code": 1,
+            "detail": {
+                "subtask_results": [
+                    {"task_id": "NC_LISTSTOCK_GLANCE", "name": "上市股票一览表", "status": "in_progress"},
+                ],
+                "monitored_tasks": [
+                    {"id": "NC_LISTSTOCK_GLANCE", "name": "上市股票一览表"},
+                ],
+            },
+        }
+        self.assertEqual(subtasks_display_for_job("elk", info), "")
+
     def test_elk_subtasks_from_monitored_tasks(self) -> None:
         info = {
             "exit_code": 0,

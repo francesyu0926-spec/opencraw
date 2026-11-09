@@ -85,6 +85,7 @@ def subtasks_display_for_job(job_id: str, info: dict) -> str:
                     labels.append(label)
             if labels:
                 return "、".join(labels)
+            return ""
         passed = detail.get("passed_tasks")
         if isinstance(passed, list) and passed:
             labels = [
