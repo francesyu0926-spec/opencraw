@@ -317,6 +317,9 @@ def run_scheduled_monitors(
     if cfg.notify_success_trial and cfg.notify_success_trial.jobs:
         trial_job_ids = cfg.notify_success_trial.jobs
 
+    end_now = datetime.now(tz) if at is None else now
+    allow_success_wecom = success_wecom_allowed(end_now, cfg)
+
     for job_id, job in cfg.jobs.items():
         if job_filter and job_id not in job_filter:
             continue
@@ -390,8 +393,6 @@ def run_scheduled_monitors(
 
     success_notify_ok: bool | None = None
     success_notify_msg = ""
-    end_now = datetime.now(tz) if at is None else now
-    allow_success_wecom = success_wecom_allowed(end_now, cfg)
     trial_hourly_active = notify_success_trial_active(
         end_now, cfg.notify_success_trial
     ) or notify_success_trial_active(now, cfg.notify_success_trial)
