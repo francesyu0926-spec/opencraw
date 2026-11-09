@@ -20,8 +20,8 @@ class ProductionScheduleTests(unittest.TestCase):
     def test_dispatcher_five_minutes(self) -> None:
         self.assertEqual(self.cfg.dispatcher_interval_minutes, 5)
 
-    def test_elk_job_interval_fifteen_minutes(self) -> None:
-        self.assertEqual(self.cfg.jobs["elk"].interval_minutes, 15)
+    def test_elk_job_interval_five_minutes(self) -> None:
+        self.assertEqual(self.cfg.jobs["elk"].interval_minutes, 5)
 
     def test_elk_midnight_window(self) -> None:
         job = self.cfg.jobs["elk"]

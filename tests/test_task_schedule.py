@@ -34,7 +34,7 @@ class TaskScheduleTests(unittest.TestCase):
         self.assertEqual(cfg.query_time_mode, "rolling_in_batch")
         self.assertEqual(cfg.batch_window_start, "00:00")
         self.assertEqual(cfg.batch_window_end, "05:00")
-        self.assertEqual(cfg.schedule_interval_minutes, 15)
+        self.assertEqual(cfg.schedule_interval_minutes, 5)
 
 
 if __name__ == "__main__":

@@ -21,7 +21,7 @@ jobs:
   elk:
     enabled: true
     description: ELK 数据同步定时任务监控（§2.1）
-    interval_minutes: 15
+    interval_minutes: 5
     active_start: "00:00"
     active_end: "05:00"
     config: config/cron_tasks.yaml

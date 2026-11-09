@@ -75,7 +75,7 @@ def resolve_query_timestamp_range(
     返回 ES @timestamp range 的 gte、lte（ISO8601，含时区偏移）。
 
     rolling_in_batch（默认）：在 batch_window 内，每轮只查最近 schedule_interval_minutes
-    （默认 15 分钟），与「0–5 点每 15 分钟跑一次」一致。
+    （默认 5 分钟），与 ELK 巡检间隔一致；有 task_ids 时会前扩至子任务计划开始。
 
     batch_window：当日 00:00 至 min(当前, 05:00)，凌晨多次跑时窗口随当前时间变长。
 

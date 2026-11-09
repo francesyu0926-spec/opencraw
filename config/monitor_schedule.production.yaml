@@ -24,8 +24,8 @@ notify_on_run_complete:
 jobs:
   elk:
     enabled: true
-    description: ELK 数据同步（子任务进监控窗时执行；ES 每轮仅查最近 15 分钟，见 cron_tasks.yaml）
-    interval_minutes: 15
+    description: ELK 数据同步（子任务进监控窗时执行；与调度器同为 5 分钟对齐，见 cron_tasks.yaml）
+    interval_minutes: 5
     active_start: "00:00"
     active_end: "05:00"
     config: config/cron_tasks.yaml

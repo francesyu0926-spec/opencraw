@@ -94,6 +94,21 @@ def active_elk_task_ids(
     ]
 
 
+def elk_follow_up_minutes(
+    cfg: MonitorConfig,
+    job_interval_minutes: int,
+    dispatcher_interval_minutes: int = 5,
+) -> int:
+    """
+    监控硬截止后的收尾窗：至少覆盖 overrun 宽限，并保留 ≥1 次巡检周期。
+    告警：未迟到 +6min、超时 +11min → 5 分钟巡检可在宽限内多次轮询。
+    """
+    interval = max(1, job_interval_minutes)
+    dispatcher = max(1, dispatcher_interval_minutes)
+    overrun = max(0, cfg.overrun_after_end_threshold_minutes)
+    return max(interval, overrun + dispatcher)
+
+
 def elk_task_ids_in_evaluation_scope(
     cfg: MonitorConfig, task_ids: list[str], now: datetime
 ) -> list[str]:
@@ -118,21 +133,22 @@ def is_elk_job_due(
     job_interval_minutes: int | None = None,
     job_enabled: bool = True,
 ) -> bool:
-    """ELK job：batch 窗内有子任务在监控窗内，并按 job 间隔（默认 15 分钟）对齐。"""
+    """ELK job：batch 窗内有子任务可调度，并按 job 间隔（默认 5 分钟）对齐。"""
     if not job_enabled:
         return False
+    dispatcher = max(1, dispatcher_interval_minutes)
     interval = max(
         1,
         job_interval_minutes
         if job_interval_minutes is not None
-        else cron_cfg.schedule_interval_minutes or 15,
+        else cron_cfg.schedule_interval_minutes or 5,
     )
-    in_window = active_elk_task_ids(cron_cfg, now, follow_up_minutes=interval)
+    follow_up = elk_follow_up_minutes(cron_cfg, interval, dispatcher)
+    in_window = active_elk_task_ids(cron_cfg, now, follow_up_minutes=follow_up)
     if not in_window:
         return False
     if not elk_task_ids_in_evaluation_scope(cron_cfg, in_window, now):
         return False
-    dispatcher = max(1, dispatcher_interval_minutes)
     minute_of_day = now.hour * 60 + now.minute
     remainder = minute_of_day % interval
     if remainder == 0:

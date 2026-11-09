@@ -7,6 +7,7 @@ from zoneinfo import ZoneInfo
 from scripts.cron_task_monitor.config_loader import load_config
 from scripts.cron_task_monitor.elk_task_schedule import (
     active_elk_task_ids,
+    elk_follow_up_minutes,
     elk_task_ids_in_evaluation_scope,
     is_elk_job_due,
     is_task_in_monitor_window,
@@ -51,9 +52,11 @@ def test_active_ids_at_0110_includes_multiple() -> None:
 
 def test_follow_up_window_at_0220_schedules_dict_task() -> None:
     """监控窗结束后 follow_up 内仍触发 ELK（便于收尾企微）。"""
-    kwargs = dict(cron_cfg=CFG, dispatcher_interval_minutes=5, job_interval_minutes=15)
+    follow = elk_follow_up_minutes(CFG, 5, 5)
+    assert follow == 16
+    kwargs = dict(cron_cfg=CFG, dispatcher_interval_minutes=5, job_interval_minutes=5)
     assert is_elk_job_due(_at(2, 20), **kwargs)
-    window = active_elk_task_ids(CFG, _at(2, 20), follow_up_minutes=15)
+    window = active_elk_task_ids(CFG, _at(2, 20), follow_up_minutes=follow)
     assert "CBD_SECURITY_DICT" in window
 
 
@@ -76,9 +79,9 @@ def test_evaluation_scope_excludes_before_plan_end() -> None:
     assert "CBD_PUB_BOAR_INFO" in scoped
 
 
-def test_elk_job_due_on_15min_tick() -> None:
-    kwargs = dict(cron_cfg=CFG, dispatcher_interval_minutes=5, job_interval_minutes=15)
+def test_elk_job_due_on_5min_tick() -> None:
+    kwargs = dict(cron_cfg=CFG, dispatcher_interval_minutes=5, job_interval_minutes=5)
     assert not is_elk_job_due(_at(1, 0), **kwargs)
     assert is_elk_job_due(_at(1, 5), **kwargs)
-    assert not is_elk_job_due(_at(1, 10), **kwargs)
+    assert is_elk_job_due(_at(1, 10), **kwargs)
     assert is_elk_job_due(_at(1, 15), **kwargs)

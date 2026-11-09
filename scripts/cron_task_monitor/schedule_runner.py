@@ -10,7 +10,11 @@ from pathlib import Path
 from zoneinfo import ZoneInfo
 
 from .config_loader import load_config
-from .elk_task_schedule import active_elk_task_ids, is_elk_job_due
+from .elk_task_schedule import (
+    active_elk_task_ids,
+    elk_follow_up_minutes,
+    is_elk_job_due,
+)
 from .writing_task_schedule import is_writing_job_due
 from .env_file import load_all_monitor_env_files, load_writing_monitor_env_files
 from .notifier import send_markdown_message
@@ -203,6 +207,7 @@ def _run_single_job(
     elk_force_all_tasks: bool = False,
     writing_force_all: bool = False,
     suppress_job_wecom: bool = False,
+    dispatcher_interval_minutes: int = 5,
 ) -> tuple[int, str | None]:
     config_path = Path(job.config)
     if job.id == "health":
@@ -246,10 +251,14 @@ def _run_single_job(
             elk_interval = int(
                 kwargs.get("elk_job_interval_minutes")
                 or cron_cfg.schedule_interval_minutes
-                or 15
+                or 5
+            )
+            dispatcher = int(kwargs.get("dispatcher_interval_minutes") or 5)
+            follow_up = elk_follow_up_minutes(
+                cron_cfg, elk_interval, dispatcher
             )
             task_ids = active_elk_task_ids(
-                cron_cfg, probe, follow_up_minutes=elk_interval
+                cron_cfg, probe, follow_up_minutes=follow_up
             )
             if kwargs.get("elk_force_all_tasks"):
                 task_ids = None  # --force：检全部任务（联调）
@@ -301,6 +310,7 @@ def _run_single_job(
             base["suppress_job_wecom"] = suppress_job_wecom
         if job.id == "elk":
             base["elk_job_interval_minutes"] = job.interval_minutes
+            base["dispatcher_interval_minutes"] = dispatcher_interval_minutes
         return base
 
     if as_json:
@@ -417,6 +427,7 @@ def run_scheduled_monitors(
             elk_force_all_tasks=force and job_id == "elk",
             writing_force_all=force and job_id == "writing",
             suppress_job_wecom=job_id in notify_on_run,
+            dispatcher_interval_minutes=cfg.dispatcher_interval_minutes,
         )
         entry: dict = {"exit_code": code, "description": job.description}
         if captured:
