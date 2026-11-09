@@ -65,16 +65,23 @@ def is_elk_job_due(
     *,
     cron_cfg: MonitorConfig,
     dispatcher_interval_minutes: int,
+    job_interval_minutes: int | None = None,
     job_enabled: bool = True,
 ) -> bool:
-    """ELK job：batch 窗口内且至少一个任务处于其监控时段，并按 dispatcher 间隔对齐。"""
+    """ELK job：batch 窗内有子任务在监控窗内，并按 job 间隔（默认 15 分钟）对齐。"""
     if not job_enabled:
         return False
     if not active_elk_task_ids(cron_cfg, now):
         return False
+    interval = max(
+        1,
+        job_interval_minutes
+        if job_interval_minutes is not None
+        else cron_cfg.schedule_interval_minutes or 15,
+    )
     dispatcher = max(1, dispatcher_interval_minutes)
     minute_of_day = now.hour * 60 + now.minute
-    remainder = minute_of_day % dispatcher
+    remainder = minute_of_day % interval
     if remainder == 0:
         return True
     if remainder > dispatcher:

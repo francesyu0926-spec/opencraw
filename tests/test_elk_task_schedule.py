@@ -49,5 +49,9 @@ def test_elk_job_not_due_at_noon() -> None:
     assert not is_elk_job_due(_at(12, 0), cron_cfg=CFG, dispatcher_interval_minutes=5)
 
 
-def test_elk_job_due_on_dispatcher_tick() -> None:
-    assert is_elk_job_due(_at(1, 5), cron_cfg=CFG, dispatcher_interval_minutes=5)
+def test_elk_job_due_on_15min_tick() -> None:
+    kwargs = dict(cron_cfg=CFG, dispatcher_interval_minutes=5, job_interval_minutes=15)
+    assert is_elk_job_due(_at(1, 0), **kwargs)
+    assert is_elk_job_due(_at(1, 5), **kwargs)
+    assert not is_elk_job_due(_at(1, 10), **kwargs)
+    assert is_elk_job_due(_at(1, 15), **kwargs)

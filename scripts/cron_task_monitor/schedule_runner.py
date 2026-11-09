@@ -374,6 +374,7 @@ def run_scheduled_monitors(
                 now,
                 cron_cfg=elk_cron_cfg,
                 dispatcher_interval_minutes=cfg.dispatcher_interval_minutes,
+                job_interval_minutes=job.interval_minutes,
                 job_enabled=job.enabled,
             )
         elif job_id == "writing" and writing_cfg_path is not None:
