@@ -27,7 +27,7 @@ class WecomFormatSubtasksTests(unittest.TestCase):
                             "status": "in_progress",
                         },
                         {
-                            "task_id": "CBD_PUB_BOAR_INFO_2",
+                            "task_id": "CBD_PUB_BOAR_INFO",
                             "name": "主题成分股",
                             "status": "passed",
                         },
@@ -63,14 +63,14 @@ class WecomFormatSubtasksTests(unittest.TestCase):
             "exit_code": 0,
             "detail": {
                 "monitored_tasks": [
-                    {"id": "CBD_BOAR_INFO_2", "name": "主题"},
-                    {"id": "CBD_PUB_BOAR_INFO_2", "name": "主题成分股"},
+                    {"id": "CBD_BOAR_INFO", "name": "主题"},
+                    {"id": "CBD_PUB_BOAR_INFO", "name": "主题成分股"},
                 ]
             },
         }
         self.assertEqual(
             subtasks_display_for_job("elk", info),
-            "CBD_BOAR_INFO_2（主题）、CBD_PUB_BOAR_INFO_2（主题成分股）",
+            "CBD_BOAR_INFO（主题）、CBD_PUB_BOAR_INFO（主题成分股）",
         )
 
     def test_writing_subtasks_from_results(self) -> None:

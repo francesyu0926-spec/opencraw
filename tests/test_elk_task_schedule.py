@@ -24,12 +24,12 @@ def _at(h: int, m: int) -> datetime:
 
 
 def test_pub_boar_in_window_at_0105() -> None:
-    task = next(t for t in CFG.tasks if t.id == "CBD_PUB_BOAR_INFO_2")
+    task = next(t for t in CFG.tasks if t.id == "CBD_PUB_BOAR_INFO")
     assert is_task_in_monitor_window(CFG, task, _at(1, 5))
 
 
 def test_pub_boar_out_before_start() -> None:
-    task = next(t for t in CFG.tasks if t.id == "CBD_PUB_BOAR_INFO_2")
+    task = next(t for t in CFG.tasks if t.id == "CBD_PUB_BOAR_INFO")
     assert not is_task_in_monitor_window(CFG, task, _at(0, 55))
 
 
@@ -44,7 +44,7 @@ def test_trading_day_window_until_0415() -> None:
 
 def test_active_ids_at_0110_includes_multiple() -> None:
     ids = active_elk_task_ids(CFG, _at(1, 10))
-    assert "CBD_PUB_BOAR_INFO_2" in ids
+    assert "CBD_PUB_BOAR_INFO" in ids
     assert "NC_LISTSTOCK_GLANCE_2" in ids
     assert "CBD_TRD_DT_RECNT_2" not in ids
     assert "NC_TQ_SK_XDRY_2" not in ids
@@ -76,7 +76,7 @@ def test_evaluation_scope_excludes_before_plan_end() -> None:
     assert "NC_LISTSTOCK_GLANCE_2" in window
     scoped = elk_task_ids_in_evaluation_scope(CFG, window, _at(1, 5))
     assert "NC_LISTSTOCK_GLANCE_2" not in scoped
-    assert "CBD_PUB_BOAR_INFO_2" in scoped
+    assert "CBD_PUB_BOAR_INFO" in scoped
 
 
 def test_elk_job_due_on_5min_tick() -> None:

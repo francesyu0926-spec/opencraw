@@ -21,7 +21,7 @@ class NotifierTests(unittest.TestCase):
         alerts = [
             Alert(
                 kind=AlertKind.LATE_START,
-                task_id="CBD_QUOT_CBND_STK_2",
+                task_id="CBD_QUOT_CBND_STK",
                 task_name="同步可转债",
                 message="以下任务未按时启动",
                 notify="阳祥风",
