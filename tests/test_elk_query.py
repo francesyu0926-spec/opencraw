@@ -10,7 +10,7 @@ from scripts.cron_task_monitor.quote_utils import msg_keywords_from_config
 class ElkQueryTests(unittest.TestCase):
     def test_build_msg_match_query_structure(self) -> None:
         body = build_msg_match_query(
-            ["CBD_PUB_BOARD_INFO", "CBD_QUOT_CBND_STK"],
+            ["CBD_PUB_BOAR_INFO", "CBD_QUOT_CBND_STK_2"],
             message_field="msg",
             timestamp_gte="now-15m",
             timestamp_lte="now",

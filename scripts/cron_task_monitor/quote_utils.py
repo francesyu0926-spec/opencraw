@@ -10,6 +10,37 @@ class CQuotesESError(Exception):
     """与 mdimonitor utils.CQuotesESError 一致，用于告警文案。"""
 
 
+def resolve_task_id_for_cli(cfg: MonitorConfig, requested: str) -> str | None:
+    """将 --task 参数映射为 cron_tasks.yaml 中的 id（兼容误写的 _2 后缀）。"""
+    needle = requested.strip()
+    if not needle:
+        return None
+    by_id = {t.id: t for t in cfg.tasks}
+    if needle in by_id:
+        return needle
+    for task in cfg.tasks:
+        if needle == task.name:
+            return task.id
+    if needle.endswith("_2"):
+        base = needle[:-2]
+        if base in by_id:
+            return base
+    if f"{needle}_2" in by_id:
+        return f"{needle}_2"
+    return None
+
+
+def expand_cli_task_ids(cfg: MonitorConfig, requested: list[str] | None) -> set[str]:
+    if not requested:
+        return set()
+    resolved: set[str] = set()
+    for raw in requested:
+        tid = resolve_task_id_for_cli(cfg, raw)
+        if tid:
+            resolved.add(tid)
+    return resolved
+
+
 def msg_keywords_from_config(cfg: MonitorConfig, task_ids: set[str] | None = None) -> list[str]:
     """对齐 data.Task：取任务常量名（id），过滤含 __ 的键在 YAML 中不会出现。"""
     keywords: list[str] = []
@@ -50,6 +81,21 @@ def _parse_hhmmss(value: str, tz: ZoneInfo, ref: datetime) -> datetime | None:
 def _scheduled_dt(ref: datetime, hhmm: str, tz: ZoneInfo) -> datetime:
     hour, minute = (int(x) for x in hhmm.split(":", 1))
     return datetime.combine(ref.date(), time(hour, minute), tzinfo=tz)
+
+
+def task_completion_deadline(
+    cfg: MonitorConfig, task_name: str, ref: datetime
+) -> datetime | None:
+    """预计结束时刻 + overrun（执行超时截止）。"""
+    task = _find_task(cfg, task_name)
+    if not task:
+        return None
+    tz = ZoneInfo(cfg.timezone)
+    end = _scheduled_dt(ref, task.expected_end, tz)
+    start = _scheduled_dt(ref, task.scheduled_start, tz)
+    if end <= start:
+        end += timedelta(days=1)
+    return end + timedelta(minutes=cfg.overrun_after_end_threshold_minutes)
 
 
 def calculate_time_diff_by_task(cfg: MonitorConfig, task_name: str, ref: datetime) -> int:

@@ -1,0 +1,57 @@
+# 生产监控时刻表（由 scripts/run_monitor_production.* 使用）
+# 任务计划 / cron：每 5 分钟触发调度器（与各 job 间隔 10/15 分钟对齐）
+timezone: Asia/Shanghai
+
+dispatcher_interval_minutes: 5
+
+# 此日期后：整点 health/ws、ELK/写稿跑完 — 成功均不发企微；失败仍发
+notify_success_until: "2026-11-30"
+
+# 整点（:00）对 health / ws 发企微（长期；12/1 起仅失败）
+notify_success_trial:
+  enabled: true
+  on_hour_only: true
+  heartbeat_if_no_jobs: true
+  jobs:
+    - health
+    - ws
+
+# ELK / 写稿：每次执行完发企微 Markdown（成功或失败均发，见 schedule_runner）
+notify_on_run_complete:
+  - elk
+  - writing
+
+jobs:
+  elk:
+    enabled: true
+    description: ELK 数据同步（子任务进监控窗时执行；与调度器同为 5 分钟对齐，见 cron_tasks.yaml）
+    interval_minutes: 5
+    active_start: "00:00"
+    active_end: "05:00"
+    config: config/cron_tasks.yaml
+
+  ws:
+    enabled: true
+    description: WebSocket 模拟客户端探活（每 10 分钟，维持>30s 后主动断连）
+    interval_minutes: 10
+    active_start: "09:00"
+    active_end: "15:30"
+    weekdays_only: true
+    config: config/ws_monitor.yaml
+
+  health:
+    enabled: true
+    description: 行情 HTTP 接口 health 探活
+    interval_minutes: 15
+    active_start: "09:00"
+    active_end: "23:39"
+    config: config/health_monitor.yaml
+
+  writing:
+    enabled: true
+    description: 自动化写稿（到点+10min 单次执行，见 tasks.py / writing_monitor.yaml）
+    interval_minutes: 5
+    active_start: "07:00"
+    active_end: "20:30"
+    weekdays_only: true
+    config: config/writing_monitor.yaml

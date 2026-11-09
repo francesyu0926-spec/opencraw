@@ -20,7 +20,7 @@ from scripts.cron_task_monitor.quotes_es import build_mdimonitor_query
 
 class TestQuotesEsQuery(unittest.TestCase):
     def test_query_fixture_shape(self) -> None:
-        keywords = ["CBD_QUOT_CBND_STK", "CBD_PUB_BOARD_INFO"]
+        keywords = ["CBD_QUOT_CBND_STK_2", "CBD_PUB_BOAR_INFO"]
         body = build_mdimonitor_query(keywords)
         bool_q = body["query"]["bool"]
         self.assertEqual(len(bool_q["should"]), 2)
@@ -41,7 +41,7 @@ class TestQuotesEsRules(unittest.TestCase):
         hits = [
             {
                 "_source": {
-                    "msg": "开始执行任务: CBD_QUOT_CBND_STK,执行时间：2025-11-03 02:10:00",
+                    "msg": "开始执行任务: CBD_PUB_BOAR_INFO,执行时间：2025-11-03 01:07:00",
                 }
             }
         ]
@@ -53,16 +53,21 @@ class TestQuotesEsRules(unittest.TestCase):
         hits = [
             {
                 "_source": {
-                    "msg": "任务执行完成:CBD_QUOT_CBND_STK,耗时：7200秒",
+                    "msg": "开始执行任务: CBD_PUB_BOAR_INFO,执行时间：2025-11-03 01:00:01",
                 }
-            }
+            },
+            {
+                "_source": {
+                    "msg": "任务执行完成:CBD_PUB_BOAR_INFO,耗时：900秒",
+                }
+            },
         ]
         alerts = check_task_ended_late(self.cfg, hits, self.ref)
         self.assertTrue(alerts)
         self.assertIn("执行超时", alerts[0].message)
 
     def test_task_failed(self) -> None:
-        hits = [{"_source": {"msg": "CBD_QUOT_CBND_STK 执行失败，请检查"}}]
+        hits = [{"_source": {"msg": "CBD_QUOT_CBND_STK_2 执行失败，请检查"}}]
         alerts = check_task_failed(self.cfg, hits, self.keywords)
         self.assertTrue(alerts)
         self.assertIn("执行失败", alerts[0].message)
@@ -71,10 +76,10 @@ class TestQuotesEsRules(unittest.TestCase):
         hits = [
             {
                 "_source": {
-                    "msg": "开始执行任务: CBD_QUOT_CBND_STK,执行时间：2025-11-03 02:00:05",
+                    "msg": "开始执行任务: CBD_PUB_BOAR_INFO,执行时间：2025-11-03 01:00:05",
                 }
             },
-            {"_source": {"msg": "任务执行完成:CBD_QUOT_CBND_STK,耗时：120秒"}},
+            {"_source": {"msg": "任务执行完成:CBD_PUB_BOAR_INFO,耗时：120秒"}},
         ]
         alerts = run_mdimonitor_checks(self.cfg, hits, self.keywords, self.ref)
         self.assertEqual(alerts, [])
@@ -87,7 +92,7 @@ class TestQuotesEsLive(unittest.TestCase):
 
         cfg = load_config("config/cron_tasks.yaml")
         kws = msg_keywords_from_config(cfg)
-        hits, err = search_hits(cfg, kws)
+        hits, err, _qtr = search_hits(cfg, kws)
         self.assertIsNone(err, err)
         self.assertIsInstance(hits, list)
 

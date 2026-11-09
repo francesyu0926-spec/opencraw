@@ -8,15 +8,15 @@ from scripts.cron_task_monitor.config_loader import load_config
 
 # PDF 第二表（logstash-zxt-terminal + 更新项）
 EXPECTED = {
-    "CBD_PUB_BOARD_INFO": ("01:00", "01:03"),
-    "CBD_BOARD_INFO": ("01:00", "01:05"),
+    "CBD_PUB_BOAR_INFO": ("01:00", "01:03"),
+    "CBD_BOAR_INFO": ("01:00", "01:05"),
     "CBD_QUOT_STK_ISS": ("01:00", "01:05"),
-    "CBD_SECURITY_DICT": ("04:00", "04:05"),
-    "CBD_TRD_DT_RECNT": ("01:00", "02:00"),
-    "NC_LISTSTOCK_GLANCE": ("00:00", "00:05"),
-    "NC_TQ_SK_XDRY": ("02:40", "02:45"),
-    "CBD_BD_FIN_DATA": ("04:00", "04:05"),
-    "CBD_QUOT_CBND_STK": ("02:00", "02:05"),
+    "CBD_SECURITY_DICT_2": ("02:00", "02:05"),
+    "CBD_TRD_DT_RECNT_2": ("04:00", "04:05"),
+    "NC_LISTSTOCK_GLANCE": ("01:00", "02:00"),
+    "NC_TQ_SK_XDRY_2": ("00:00", "00:05"),
+    "CBD_BD_FIN_DATA_2": ("02:40", "02:45"),
+    "CBD_QUOT_CBND_STK_2": ("04:00", "04:05"),
 }
 
 
@@ -29,12 +29,43 @@ class TaskScheduleTests(unittest.TestCase):
             self.assertEqual(task.scheduled_start, start, task_id)
             self.assertEqual(task.expected_end, end, task_id)
 
+    def test_log_index_pattern_by_task(self) -> None:
+        cfg = load_config("config/cron_tasks.yaml")
+        by_id = {t.id: t for t in cfg.tasks}
+        mongo = {
+            "CBD_PUB_BOAR_INFO",
+            "CBD_BOAR_INFO",
+            "CBD_QUOT_STK_ISS",
+            "NC_LISTSTOCK_GLANCE",
+        }
+        terminal = {
+            "NC_TQ_SK_XDRY_2",
+            "CBD_BD_FIN_DATA_2",
+            "CBD_QUOT_CBND_STK_2",
+            "CBD_SECURITY_DICT_2",
+            "CBD_TRD_DT_RECNT_2",
+        }
+        for tid in mongo:
+            self.assertEqual(
+                by_id[tid].log_index_pattern,
+                "logstash-sync-mongo-*",
+                tid,
+            )
+            self.assertEqual(by_id[tid].server, "124.220.0.191", tid)
+        for tid in terminal:
+            self.assertEqual(
+                by_id[tid].log_index_pattern,
+                "logstash-zxt-terminal-task-*",
+                tid,
+            )
+            self.assertEqual(by_id[tid].server, "172.30.176.135", tid)
+
     def test_batch_window_config(self) -> None:
         cfg = load_config("config/cron_tasks.yaml")
         self.assertEqual(cfg.query_time_mode, "rolling_in_batch")
         self.assertEqual(cfg.batch_window_start, "00:00")
         self.assertEqual(cfg.batch_window_end, "05:00")
-        self.assertEqual(cfg.schedule_interval_minutes, 15)
+        self.assertEqual(cfg.schedule_interval_minutes, 5)
 
 
 if __name__ == "__main__":

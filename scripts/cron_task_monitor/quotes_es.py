@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 from datetime import datetime
 from typing import Any
+from zoneinfo import ZoneInfo
 
 from .elasticsearch_settings import ElasticsearchSettings, auth_headers, resolve_elasticsearch
 from .models import ElasticsearchConfig, MonitorConfig
@@ -45,11 +46,19 @@ def build_query_from_config(
     cfg: MonitorConfig,
     msg_keywords: list[str],
     ref: datetime | None = None,
+    *,
+    query_end: datetime | None = None,
+    task_ids_for_range: list[str] | None = None,
 ) -> dict[str, Any]:
     from .time_window import resolve_query_timestamp_range
 
     es = cfg.elasticsearch or ElasticsearchConfig()
-    gte, lte = resolve_query_timestamp_range(cfg, ref)
+    gte, lte = resolve_query_timestamp_range(
+        cfg,
+        ref,
+        query_end=query_end,
+        task_ids=task_ids_for_range or msg_keywords,
+    )
     return build_mdimonitor_query(
         msg_keywords,
         message_field=es.message_field or "msg",
@@ -83,20 +92,43 @@ def search_hits(
     cfg: MonitorConfig,
     msg_keywords: list[str],
     ref: datetime | None = None,
-) -> tuple[list[dict], str | None]:
-    """返回 (hits, error)。优先 elasticsearch 库，失败时回退 urllib。"""
+    *,
+    simulate_at: bool = False,
+) -> tuple[list[dict], str | None, dict[str, str] | None]:
+    """返回 (hits, error, query_time_range)。优先 elasticsearch 库，失败时回退 urllib。"""
     settings = resolve_elasticsearch(cfg)
     if not settings:
-        return [], "未配置 Elasticsearch"
+        return [], "未配置 Elasticsearch", None
 
-    body = build_query_from_config(cfg, msg_keywords, ref)
+    tz = ZoneInfo(cfg.timezone)
+    if simulate_at and ref is not None:
+        query_end = ref.astimezone(tz)
+    else:
+        query_end = datetime.now(tz)
+    task_ids_for_range = list(msg_keywords)
+    body = build_query_from_config(
+        cfg,
+        msg_keywords,
+        ref,
+        query_end=query_end,
+        task_ids_for_range=task_ids_for_range,
+    )
+    from .time_window import resolve_query_timestamp_range
+
+    gte, lte = resolve_query_timestamp_range(
+        cfg,
+        ref,
+        query_end=query_end,
+        task_ids=task_ids_for_range,
+    )
+    qtr = {"gte": gte, "lte": lte, "timezone": cfg.timezone}
     indices = default_indices(cfg)
 
     try:
         client = create_es_client(settings)
         result = client.search(index=indices, body=body)
         client.close()
-        return result.get("hits", {}).get("hits") or [], None
+        return result.get("hits", {}).get("hits") or [], None, qtr
     except Exception as exc:
         # urllib 回退
         import urllib.error
@@ -113,9 +145,9 @@ def search_hits(
         try:
             with urllib.request.urlopen(req, timeout=30) as resp:
                 payload = json.loads(resp.read().decode("utf-8"))
-            return payload.get("hits", {}).get("hits") or [], None
+            return payload.get("hits", {}).get("hits") or [], None, qtr
         except urllib.error.HTTPError as e:
             detail = e.read().decode("utf-8", errors="replace")[:300]
-            return [], f"HTTP {e.code}: {detail} (elasticsearch lib: {exc})"
+            return [], f"HTTP {e.code}: {detail} (elasticsearch lib: {exc})", qtr
         except (urllib.error.URLError, TimeoutError, json.JSONDecodeError) as e2:
-            return [], f"{e2} (elasticsearch lib: {exc})"
+            return [], f"{e2} (elasticsearch lib: {exc})", qtr

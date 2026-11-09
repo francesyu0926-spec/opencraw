@@ -1,25 +1,71 @@
 # 定时任务监控（§2.1）
 
-## 执行计划（每天 00:00–05:00，每 15 分钟）
+## 生产调度（推荐）
+
+时刻表见 `config/monitor_schedule.production.yaml`，入口 **`scripts/run_monitor_production.ps1`** / **`run_monitor_production.sh`**。
+
+**调度器**：**每 5 分钟**触发一轮（墙钟 :00/:05/:10…）。各 job 是否执行见下表（非简单「每 N 分钟扫全表」）。
+
+| Job | 何时执行 | 运行窗口 / 说明 |
+|-----|----------|-----------------|
+| `elk` | **有 ELK 子任务处于监控窗** 且命中 5 分钟 tick | **00:00–05:00**；子任务时刻见 `config/cron_tasks.yaml`（计划开始～预期结束+10 分钟） |
+| `ws` | 每 **10** 分钟 tick | **09:00–15:30**（08:30–09:00 跳过，见 `ws_monitor.yaml`） |
+| `health` | 每 **15** 分钟 tick | **09:00–23:39** |
+| `writing` | **有写稿子任务处于「到点+10min」单次 5min 时段** 且命中 5 分钟 tick | **07:00–20:30**；7 项到点见 `scripts/automated_writing/verify/tasks.py`，`writing_monitor.yaml` |
+
+**企微（生产 YAML）**：
+
+- **`notify_success_until: 2026-11-30`**：此日期后**成功**不发企微（失败仍发）。
+- **`notify_success_trial`**：**health / ws** 整点 **:00** 发 Markdown 巡检（长期；12/1 起整点**仅失败**）。
+- **`notify_on_run_complete`**：**elk / writing** 每次**实际跑完**发 Markdown（12/1 起**仅失败**）。
+
+查看完整时刻：`python scripts/print_schedule.py`。
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\run_monitor_production.ps1 -Json
+```
+
+```bash
+python -m scripts.cron_task_monitor --run-scheduled \
+  --schedule-config config/monitor_schedule.production.yaml --json
+```
+
+**Windows 任务计划**：每天重复，间隔 **5 分钟**（触发调度器）。注册：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\register_monitor_scheduled_task.ps1
+```
+
+（工作目录=仓库根，任务动作使用 `scripts\run_monitor_production.ps1`，无写死的盘符路径。）
+
+**Linux cron**：先 `cd` 到仓库根再 `./scripts/run_monitor_production.sh`（见 `config/schedule.example.cron`）。
+
+## 统一调度（开发/旧表）
+
+`config/monitor_schedule.yaml`：health 5 分钟 / ws 10 分钟 / elk 0–5 点 15 分钟；调度器 **每 5 分钟**。入口 `scripts/run_scheduled_monitors.ps1`。
+
+密钥文件（均 gitignore）：`config/elk.env`、`config/health.env`、`config/wecom.env`、`config/writing.env`（示例见 `*.example`）。
+
+### 自动化写稿（writing）
+
+代码来自 `scripts/automated_writing/`（生产调度为 `verify run --window`：到点后 **10 分钟**、**5 分钟墙钟对齐**执行 **1 次**）。配置 **`config/writing.env`**：`SFC_ADMIN_CODE` / `SFC_ADMIN_PASSWORD`（与 automated_writing 一致），企微用 **`SFC_WECHAT_WEBHOOK_URL`** 或 **`wecom.env`** 中的 **`WECOM_WEBHOOK_URL_WRITING`**。
+
+```powershell
+python -m scripts.cron_task_monitor --writing-monitor --json
+python -m scripts.cron_task_monitor --run-scheduled --schedule-config config/monitor_schedule.production.yaml --job writing --force --json
+```
+
+## §2.1 ELK 数据同步（单独运行）
 
 | 项目 | 配置 |
 |------|------|
 | 运行窗口 | **00:00–05:00**（`Asia/Shanghai`） |
-| 频率 | **每 15 分钟** |
-| ES 查询 | **`rolling_in_batch`**：在窗口内查 **最近 15 分钟** 日志 |
+| 触发方式 | **按各任务计划时间**：仅当某任务处于「计划开始 ~ 预期结束 + 10 分钟」监控窗内，且调度器 **5 分钟**  tick 时跑 ELK |
+| ES 查询 | **`rolling_in_batch`**：每轮只查 **当前窗内任务**，日志范围仍为 **最近 15 分钟** |
 
-触发时刻示例：`00:00, 00:15, …, 04:45, 05:00`。
+示例：主题成分股 01:00 开始 → 约 **01:00–01:13** 内每 5 分钟检该任务；02:40 复权因子 → 约 **02:40–02:55** 检该任务。
 
-### Linux cron
-
-见 `config/schedule.example.cron`。
-
-### Windows 任务计划程序
-
-1. 创建任务 → 触发器：**每天 00:00**
-2. 勾选 **重复任务**，间隔 **15 分钟**，持续时间 **5 小时**
-3. 操作：`powershell.exe -ExecutionPolicy Bypass -File D:\Document\CODE\opencraw\scripts\run_monitor_scheduled.ps1`
-4. 环境变量：`ELASTICSEARCH_PASSWORD`、`WECOM_WEBHOOK_URL`（系统或任务里配置）
+旧入口 `scripts/run_monitor_scheduled.ps1` 仍可用（仅转发 ELK job 到统一调度）。
 
 ## 手动运行
 
@@ -41,25 +87,30 @@ python -m scripts.cron_task_monitor --json
 | `batch_window` | 当日 `00:00` 至 `min(now, 05:00)` |
 | `elastic` | 使用 YAML 里 `timestamp_gte` / `timestamp_lte`（如 `now/d`） |
 
-## §2.2 WebSocket 探活
+## §2.2 WebSocket 探活（模拟客户端 / 模拟用户）
+
+运维侧独立 **监控客户端**，**每 10 分钟** 一轮（`config/ws_monitor.yaml` → `interval_seconds: 600`；生产见 `monitor_schedule.production.yaml`）：
+
+1. **能否成功建立连接**（`connect_timeout_seconds`）
+2. **能否维持连接 > 30 秒**（`hold_seconds`，计时结束后 **主动 `close`**，避免长连占资源）
+3. **能否正确收发消息**：发送订阅 JSON → 至少收到 1 条推送，且含 **`quoteItems`**（视为业务行情消息正常；失败即告警）
+4. **企微**：非整点**仅失败**告警；整点 **:00** 巡检见上文 **`notify_success_trial`**（`WECOM_WEBHOOK_URL_WS`）
 
 ```powershell
 pip install websockets
 python -m scripts.cron_task_monitor --ws-monitor --json
-# 或与 mdimonitor 一致的长驻循环（默认每 600 秒一轮，探活内 30 秒后主动断连）：
+# 长驻单进程（内置每 10 分钟一轮，逻辑同上）：
 python -m scripts.cron_task_monitor --ws-daemon
 ```
 
-- 地址与 subscribe 参数：`config/ws_monitor.yaml`（六大指数、`quoteItems` 校验与 mdimonitor WebSocket 客户端一致）
-- 建连 → 发送订阅 JSON → **30 秒** 定时断连 → 推送须含 **`quoteItems`**，否则记失败并可选即时企微（`WeChatBot.send_text`，daemon 模式）
-- **08:30–09:00** 自动跳过（不告警）
-- 单次探活失败汇总告警走 **`WECOM_WEBHOOK_URL_WS`**（`--ws-monitor`）；cron 建议 **每 10 分钟**（见 `config/schedule.example.cron`）
+- 配置：`config/ws_monitor.yaml`（六大指数订阅，与行情客户端一致）
+- **08:30–09:00** 自动跳过（不告警、不探活）
 
 ## 行情 API Health
 
 Token 来自登录接口，再放到 health 请求的 **Token** 头。登录最多每 **12 小时**一次，JWT 与取得时间写在 `config/health.token.cache.json`（已 gitignore）。未同时配置登录账号和密码时，才回退到静态 `QUOTES_HEALTH_TOKEN`（不写缓存）。
 
-若存在 **`config/health.env`**（及可选的 **`config/wecom.env`**），`--health-monitor` 会按**仓库根目录**（相对本脚本位置解析，与当前工作目录无关）自动加载其中的变量；不会覆盖 shell 里已有**非空**的同名变量，但会用文件中的值替换 shell 里**空字符串**占位（常见于 Windows 用户/IDE 环境）。可复制 `config/health.env.example` 为 `config/health.env` 并填入密钥（勿提交）。
+在仓库根目录执行时，若存在 **`config/health.env`**（及可选的 **`config/wecom.env`**），`--health-monitor` 会自动加载其中的变量（不覆盖 shell 里**已有非空值**的同名变量；UTF-8 BOM 与仅含空白的占位变量会被正确处理）。也可根据 `--health-config` 路径定位仓库根目录加载上述文件。可复制 `config/health.env.example` 为 `config/health.env` 并填入密钥（勿提交）。
 
 也可在 shell 中手动 export：
 
@@ -83,10 +134,15 @@ Windows 计划任务可直接跑 `scripts/run_health_monitor.ps1`（同样会加
 
 ## 告警与企业微信（三个机器人）
 
+**失败**且已配置 webhook 时必告警。**成功**是否发企微由 `monitor_schedule.production.yaml` 中 **`notify_success_until` / `notify_success_trial` / `notify_on_run_complete`** 控制（见上文「生产调度」）。非整点、非上述策略时，**health / ws / elk** 单独跑仍默认**仅失败**发内置告警。
+
 | 监控 | 环境变量 | 配置 |
 |------|----------|------|
 | §2.1 ELK 定时任务 | **`WECOM_WEBHOOK_URL_ELK`** | `config/cron_tasks.yaml` → `wecom.webhook_env` |
 | §2.2 WebSocket | **`WECOM_WEBHOOK_URL_WS`** | `config/ws_monitor.yaml` → `wecom.webhook_env` |
 | 行情 API Health | **`WECOM_WEBHOOK_URL_HEALTH`** | `config/health_monitor.yaml` → `wecom.webhook_env` |
+| 自动化写稿 | **`WECOM_WEBHOOK_URL_WRITING`** / **`SFC_WECHAT_WEBHOOK_URL`** | `config/writing.env` |
 
-示例见 `config/wecom.env.example`。已配置对应变量时自动推送；**`--no-notify`** 可关闭。
+示例见 `config/wecom.env.example`。联调可用 **`--notify-success`** / **`-NotifySuccess`**（每轮全部 job 成功时发 ELK 机器人汇总，与整点 trial 互斥）。
+
+**`--no-notify`** 可关闭全部通知（含整点巡检）。

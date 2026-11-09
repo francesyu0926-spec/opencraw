@@ -18,7 +18,11 @@ if (Test-Path $healthEnv) {
         if ($_ -match '^\s*#' -or $_ -match '^\s*$') { return }
         $pair = $_ -split '=', 2
         if ($pair.Count -eq 2) {
-            Set-Item -Path "Env:$($pair[0].Trim())" -Value $pair[1].Trim()
+            $name = $pair[0].Trim()
+            $value = $pair[1].Trim()
+            $existing = [Environment]::GetEnvironmentVariable($name, "Process")
+            if ($existing -and $existing.Trim()) { return }
+            Set-Item -Path "Env:$name" -Value $value
         }
     }
 }
@@ -29,7 +33,11 @@ if (Test-Path $wecomEnv) {
         if ($_ -match '^\s*#' -or $_ -match '^\s*$') { return }
         $pair = $_ -split '=', 2
         if ($pair.Count -eq 2) {
-            Set-Item -Path "Env:$($pair[0].Trim())" -Value $pair[1].Trim()
+            $name = $pair[0].Trim()
+            $value = $pair[1].Trim()
+            $existing = [Environment]::GetEnvironmentVariable($name, "Process")
+            if ($existing -and $existing.Trim()) { return }
+            Set-Item -Path "Env:$name" -Value $value
         }
     }
 }

@@ -9,13 +9,56 @@ from zoneinfo import ZoneInfo
 
 from .config_loader import load_config
 from .elk_client import check_elasticsearch
-from .mdimonitor_checks import run_mdimonitor_checks
+from .elk_task_schedule import (
+    elk_follow_up_minutes,
+    elk_task_ids_in_evaluation_scope,
+    elk_task_ids_in_monitoring_scope,
+)
+from .elk_subtask_eval import alerts_from_subtask_results, evaluate_elk_subtasks
 from .models import Alert, AlertKind
 from .notifier import send_webhook, should_send_notify
-from .quote_utils import msg_keywords_from_config
+from .quote_utils import expand_cli_task_ids, msg_keywords_from_config
 from .quotes_es import build_query_from_config, default_indices, search_hits
 
 MONITOR_MODE = "elk"
+
+
+def namespace_for_elk_run(
+    *,
+    config: str,
+    at: str | None = None,
+    as_json: bool = False,
+    dry_run: bool = False,
+    notify: bool = False,
+    no_notify: bool = False,
+    task_ids: list[str] | None = None,
+) -> argparse.Namespace:
+    """Minimal args for run_monitor() ELK path (used by schedule_runner)."""
+    return argparse.Namespace(
+        config=config,
+        task_ids=task_ids,
+        at=at,
+        json=as_json,
+        dry_run=dry_run,
+        notify=notify,
+        no_notify=no_notify,
+        check_elk=False,
+        print_elk_query=False,
+        ws_monitor=False,
+        ws_config="config/ws_monitor.yaml",
+        ws_daemon=False,
+        health_monitor=False,
+        health_config="config/health_monitor.yaml",
+        writing_monitor=False,
+        writing_config="config/writing_monitor.yaml",
+        run_scheduled=False,
+        schedule_config="config/monitor_schedule.yaml",
+        job_ids=None,
+        force_scheduled=False,
+        notify_success=False,
+        check_wecom=False,
+        send_wecom_test=False,
+    )
 
 
 def _parse_args() -> argparse.Namespace:
@@ -64,6 +107,52 @@ def _parse_args() -> argparse.Namespace:
         default="config/health_monitor.yaml",
         help="Health API 监控配置",
     )
+    p.add_argument(
+        "--writing-monitor",
+        action="store_true",
+        help="自动化写稿任务验证（见 config/writing_monitor.yaml）",
+    )
+    p.add_argument(
+        "--writing-config",
+        default="config/writing_monitor.yaml",
+        help="写稿监测配置",
+    )
+    p.add_argument(
+        "--run-scheduled",
+        action="store_true",
+        help="按 config/monitor_schedule.yaml 执行到期监控（HTTP / WS / ELK）",
+    )
+    p.add_argument(
+        "--schedule-config",
+        default="config/monitor_schedule.yaml",
+        help="统一调度配置",
+    )
+    p.add_argument(
+        "--job",
+        action="append",
+        dest="job_ids",
+        help="仅运行指定 job（health / ws / elk / writing），可重复",
+    )
+    p.add_argument(
+        "--force-scheduled",
+        action="store_true",
+        help="忽略时刻表，运行所有已启用的 job（配合 --job 可只跑部分）",
+    )
+    p.add_argument(
+        "--notify-success",
+        action="store_true",
+        help="（可选）每轮全部 job 成功时发 ELK 企微汇总；受 notify_success_until 约束",
+    )
+    p.add_argument(
+        "--check-wecom",
+        action="store_true",
+        help="检查各 channel 的企微 webhook 是否已配置",
+    )
+    p.add_argument(
+        "--send-wecom-test",
+        action="store_true",
+        help="配合 --check-wecom，向已配置的机器人发送测试消息",
+    )
     return p.parse_args()
 
 
@@ -78,11 +167,49 @@ def _resolve_now(cfg_tz: str, at: str | None) -> datetime:
 
 
 def run_monitor(args: argparse.Namespace) -> int:
+    if args.check_wecom:
+        from .env_file import load_all_monitor_env_files
+        from .wecom_diag import run_check_wecom
+
+        load_all_monitor_env_files()
+        return run_check_wecom(
+            send_test=args.send_wecom_test,
+            as_json=args.json,
+        )
+
+    if args.run_scheduled:
+        from .schedule_runner import run_scheduled_monitors
+
+        job_filter = set(args.job_ids or []) or None
+        return run_scheduled_monitors(
+            Path(args.schedule_config),
+            at=args.at,
+            as_json=args.json,
+            dry_run=args.dry_run,
+            notify=args.notify,
+            no_notify=args.no_notify,
+            job_filter=job_filter,
+            force=args.force_scheduled,
+            notify_success=args.notify_success,
+        )
+
     if args.health_monitor:
         from .health_main import run_health_monitor
 
         return run_health_monitor(
             Path(args.health_config),
+            at=args.at,
+            as_json=args.json,
+            dry_run=args.dry_run,
+            notify=args.notify,
+            no_notify=args.no_notify,
+        )
+
+    if args.writing_monitor:
+        from .writing_main import run_writing_monitor
+
+        return run_writing_monitor(
+            Path(args.writing_config),
             at=args.at,
             as_json=args.json,
             dry_run=args.dry_run,
@@ -128,7 +255,7 @@ def run_monitor(args: argparse.Namespace) -> int:
             print(msg)
         return 0 if ok else 1
 
-    selected = set(args.task_ids or [])
+    selected = expand_cli_task_ids(cfg, args.task_ids)
     keywords = msg_keywords_from_config(cfg, selected or None)
 
     now = _resolve_now(cfg.timezone, args.at)
@@ -136,7 +263,8 @@ def run_monitor(args: argparse.Namespace) -> int:
     if args.print_elk_query:
         from .time_window import resolve_query_timestamp_range
 
-        gte, lte = resolve_query_timestamp_range(cfg, now)
+        query_end = now
+        gte, lte = resolve_query_timestamp_range(cfg, now, query_end=query_end)
         print(
             json.dumps(
                 {
@@ -152,10 +280,58 @@ def run_monitor(args: argparse.Namespace) -> int:
         return 0
 
     if not keywords:
-        print("no tasks matched", file=sys.stderr)
+        known = ", ".join(t.id for t in cfg.tasks)
+        print(
+            f"no tasks matched (requested={args.task_ids!r}; configured ids: {known})",
+            file=sys.stderr,
+        )
         return 2
 
-    hits, err = search_hits(cfg, keywords, now)
+    follow_up = elk_follow_up_minutes(
+        cfg, cfg.schedule_interval_minutes or 5, cfg.schedule_interval_minutes or 5
+    )
+    monitor_task_ids = elk_task_ids_in_monitoring_scope(
+        cfg, keywords, now, follow_up_minutes=follow_up
+    )
+    eval_task_ids = elk_task_ids_in_evaluation_scope(cfg, keywords, now)
+    if not monitor_task_ids:
+        monitored_tasks = [
+            {"id": task.id, "name": task.name}
+            for task in cfg.tasks
+            if task.id in keywords
+        ]
+        if args.json:
+            print(
+                json.dumps(
+                    {
+                        "checked_at": now.isoformat(),
+                        "timezone": cfg.timezone,
+                        "mode": MONITOR_MODE,
+                        "hit_count": 0,
+                        "alert_count": 0,
+                        "task_ids": keywords,
+                        "evaluation_task_ids": [],
+                        "monitor_task_ids": [],
+                        "monitored_tasks": monitored_tasks,
+                        "passed_tasks": [],
+                        "subtask_results": [],
+                        "query_time_range": None,
+                        "alerts": [],
+                    },
+                    ensure_ascii=False,
+                    indent=2,
+                )
+            )
+        else:
+            print(
+                f"checked_at={now.isoformat()} monitoring_skipped="
+                f"outside_window tasks={','.join(keywords)}"
+            )
+        return 0
+
+    hits, err, query_time_range = search_hits(
+        cfg, monitor_task_ids, now, simulate_at=bool(args.at)
+    )
 
     if err:
         alerts: list[Alert] = [
@@ -169,9 +345,14 @@ def run_monitor(args: argparse.Namespace) -> int:
             )
         ]
         hit_count = 0
+        subtask_results: list[dict] = []
+        elk_exit = 1
     else:
-        alerts = run_mdimonitor_checks(cfg, hits, keywords, now)
         hit_count = len(hits)
+        subtask_results, elk_exit = evaluate_elk_subtasks(
+            cfg, hits, monitor_task_ids, now
+        )
+        alerts = alerts_from_subtask_results(subtask_results)
 
     notify_ok: bool | None = None
     notify_msg = ""
@@ -187,6 +368,21 @@ def run_monitor(args: argparse.Namespace) -> int:
             channel="elk",
         )
 
+    monitored_tasks = [
+        {"id": task.id, "name": task.name}
+        for task in cfg.tasks
+        if task.id in eval_task_ids
+    ]
+    if not err:
+        passed_tasks = [
+            {"id": r["task_id"], "name": r["name"]}
+            for r in subtask_results
+            if r.get("status") == "passed"
+        ]
+    else:
+        passed_tasks = []
+        subtask_results = []
+
     if args.json:
         payload: dict = {
             "checked_at": now.isoformat(),
@@ -194,11 +390,19 @@ def run_monitor(args: argparse.Namespace) -> int:
             "mode": MONITOR_MODE,
             "hit_count": hit_count,
             "alert_count": len(alerts),
+            "task_ids": keywords,
+            "evaluation_task_ids": eval_task_ids,
+            "monitored_tasks": monitored_tasks,
+            "passed_tasks": passed_tasks,
+            "subtask_results": subtask_results,
+            "query_time_range": query_time_range,
             "alerts": [
                 {
                     "kind": a.kind.value,
                     "severity": a.severity,
                     "message": a.message,
+                    "task_id": a.task_id,
+                    "task_name": a.task_name,
                 }
                 for a in alerts
             ],
@@ -216,7 +420,9 @@ def run_monitor(args: argparse.Namespace) -> int:
         if notify_ok is not None:
             print(f"wecom_notify={'ok' if notify_ok else 'fail'} {notify_msg}")
 
-    return 1 if alerts else 0
+    if err:
+        return 1
+    return elk_exit
 
 
 def main() -> None:

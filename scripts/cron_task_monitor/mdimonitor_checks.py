@@ -1,13 +1,17 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from .models import Alert, AlertKind, MonitorConfig
 from .quote_utils import (
     CQuotesESError,
-    calculate_time_diff_by_task,
     minutes_diff_exceeds_limit,
+    task_completion_deadline,
+    _find_task,
+    _parse_hhmmss,
+    _scheduled_dt,
 )
+from zoneinfo import ZoneInfo
 
 
 def _alerts_from_error(kind: AlertKind, message: str) -> list[Alert]:
@@ -31,6 +35,7 @@ def check_tasks_started_late(
     task_begin_start_key = "开始执行任务: "
     task_begin_target_key = ",执行时间："
     tasks_started_late: list[str] = []
+    limit = cfg.late_start_threshold_minutes
 
     for hit in hits:
         source = hit.get("_source") or {}
@@ -51,19 +56,49 @@ def check_tasks_started_late(
         actual_start_time_str = parts[-1] if len(parts) == 2 else " ".join(parts[1:])
 
         if minutes_diff_exceeds_limit(
-            cfg, task_name, "start_time", actual_start_time_str, 5, ref
+            cfg, task_name, "start_time", actual_start_time_str, limit, ref
         ):
             tasks_started_late.append(task_name)
 
     if not tasks_started_late:
         return []
-    msg = f"以下任务未按时启动（延迟 > 5 分钟）：{', '.join(tasks_started_late)}"
+    msg = (
+        f"以下任务未按时启动（延迟 > {limit} 分钟）："
+        f"{', '.join(tasks_started_late)}"
+    )
     return _alerts_from_error(AlertKind.LATE_START, msg)
 
 
 def check_task_ended_late(cfg: MonitorConfig, hits: list[dict], ref: datetime) -> list[Alert]:
+    """执行超时：完成时刻晚于 预计结束 + overrun 分钟。"""
+    task_begin_start_key = "开始执行任务: "
+    task_begin_target_key = ",执行时间："
     task_end_start_key = "任务执行完成:"
     task_end_target_key = ",耗时："
+    overrun = cfg.overrun_after_end_threshold_minutes
+    tz = ZoneInfo(cfg.timezone)
+
+    begin_at: dict[str, datetime] = {}
+    for hit in hits:
+        source = hit.get("_source") or {}
+        source_msg = str(source.get("msg") or "")
+        if not source_msg.startswith(task_begin_start_key):
+            continue
+        if task_begin_target_key not in source_msg:
+            continue
+        parts = (
+            source_msg.replace(task_begin_start_key, "")
+            .replace(task_begin_target_key, " ")
+            .split()
+        )
+        if len(parts) < 2:
+            continue
+        task_name = parts[0]
+        actual_start_time_str = parts[-1] if len(parts) == 2 else " ".join(parts[1:])
+        actual = _parse_hhmmss(actual_start_time_str, tz, ref)
+        if actual:
+            begin_at[task_name] = actual
+
     tasks_completed_late: list[str] = []
 
     for hit in hits:
@@ -88,13 +123,27 @@ def check_task_ended_late(cfg: MonitorConfig, hits: list[dict], ref: datetime) -
         except ValueError:
             continue
 
-        expected_run_time = calculate_time_diff_by_task(cfg, task_name, ref)
-        if actual_run_time > (expected_run_time + 10 * 60):
+        deadline = task_completion_deadline(cfg, task_name, ref)
+        if not deadline:
+            continue
+
+        start = begin_at.get(task_name)
+        if start is None:
+            task = _find_task(cfg, task_name)
+            if not task:
+                continue
+            start = _scheduled_dt(ref, task.scheduled_start, tz)
+
+        finish = start + timedelta(seconds=actual_run_time)
+        if finish > deadline:
             tasks_completed_late.append(task_name)
 
     if not tasks_completed_late:
         return []
-    msg = f"以下任务执行超时（延迟 > 10 分钟）：{', '.join(tasks_completed_late)}"
+    msg = (
+        f"以下任务执行超时（超过预计结束 + {overrun} 分钟）："
+        f"{', '.join(tasks_completed_late)}"
+    )
     return _alerts_from_error(AlertKind.OVERTIME, msg)
 
 

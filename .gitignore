@@ -6,6 +6,7 @@ venv/
 config/elk.env
 config/wecom.env
 config/health.env
+config/writing.env
 config/health.token.cache.json
 config/health.token.cache.json.tmp
 .env

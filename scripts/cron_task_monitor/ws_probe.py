@@ -36,7 +36,9 @@ class WsProbeResult:
     error: str = ""
     connected: bool = False
     hold_seconds: float = 0.0
+    connected_seconds: float = 0.0
     messages_received: int = 0
+    subscribe_sent: bool = False
     quote_items_ok: bool = False
     sample_messages: list[str] = field(default_factory=list)
 
@@ -86,17 +88,20 @@ async def _probe_async(
 
     is_connected = False
     scheduled_task: asyncio.Task | None = None
+    connected_at = 0.0
 
     try:
         async with websockets.connect(cfg.url, open_timeout=timeout) as websocket:
             wssClientLogger.info("Connected successfully. Start listening...")
             is_connected = True
             result.connected = True
+            connected_at = time.monotonic()
             scheduled_task = asyncio.create_task(
                 schedule_disconnect(websocket, is_connected, hold)
             )
 
             await websocket.send(payload)
+            result.subscribe_sent = True
 
             try:
                 async for message in websocket:
@@ -136,6 +141,8 @@ async def _probe_async(
                 return result
             finally:
                 is_connected = False
+                if connected_at:
+                    result.connected_seconds = time.monotonic() - connected_at
                 if scheduled_task:
                     scheduled_task.cancel()
                     with contextlib.suppress(asyncio.CancelledError):
@@ -150,8 +157,22 @@ async def _probe_async(
         return result
 
     result.hold_seconds = hold
+    if not result.subscribe_sent:
+        result.error = "订阅消息未成功发送"
+        return result
+    if result.connected_seconds < hold - 1.0:
+        result.error = (
+            f"连接维持不足 {hold} 秒（实际 {result.connected_seconds:.1f}s），"
+            "未满足探活要求"
+        )
+        return result
+    if result.messages_received < 1:
+        result.error = f"{hold} 秒内未收到任何 WebSocket 消息"
+        return result
     if not result.quote_items_ok:
-        result.error = f"{hold} 秒内未收到含 {must_contain} 的行情推送"
+        result.error = (
+            f"{hold} 秒内未收到含 {must_contain} 的有效行情推送（心跳/业务消息异常）"
+        )
         return result
 
     result.ok = True
